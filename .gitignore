@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.next/
+out/
+cache/
+artifacts/
+broadcast/
+.env
+.env.local
+config/extension.env
+*.log
+.DS_Store
+lib/
+out/
+
+# Internal planning notes -- kept local, not published
+plan.md
