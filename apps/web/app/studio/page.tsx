@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -10,10 +10,12 @@ import {
   useEdgesState,
   type Node,
 } from '@xyflow/react'
-import { TEMPLATES, getAsset } from '@flare-studio/policy'
+import { TEMPLATES, getAsset, type CompiledPolicy } from '@flare-studio/policy'
 import { nodeTypes } from '@/components/nodes'
 import { Shell, RailButton, TopBar, Button } from '@/components/shell'
-import { Badge, Share, Address } from '@/components/primitives'
+import { Badge } from '@/components/primitives'
+import { RecipientsEditor, type Recipient } from '@/components/recipients-editor'
+import { ReviewDrawer } from '@/components/review-drawer'
 
 /**
  * The policy builder.
@@ -24,15 +26,23 @@ import { Badge, Share, Address } from '@/components/primitives'
  */
 export default function StudioPage() {
   const [templateId, setTemplateId] = useState(TEMPLATES[0]!.id)
+  const [recipients, setRecipients] = useState<Recipient[]>([
+    { address: '0x1111111111111111111111111111111111111111', shareBps: 6000, label: 'Partner' },
+    { address: '0x2222222222222222222222222222222222222222', shareBps: 4000, label: 'Child' },
+  ])
+  const [reviewing, setReviewing] = useState(false)
+  const [deployed, setDeployed] = useState<CompiledPolicy | null>(null)
+
   const template = TEMPLATES.find((t) => t.id === templateId)!
 
-  // Placeholder recipients until the inspector can edit them. Real addresses
-  // arrive from the confidential inputs panel.
-  const recipients = useMemo(
-    () => [
-      { address: '0x1111111111111111111111111111111111111111', shareBps: 6000, label: 'Partner' },
-      { address: '0x2222222222222222222222222222222222222222', shareBps: 4000, label: 'Child' },
-    ],
+  // Stable for the session. In the real deploy path this is fresh randomness
+  // per policy -- it is what stops the commitment being brute-forceable over a
+  // small recipient space.
+  const salt = useMemo(
+    () =>
+      `0x${Array.from(crypto.getRandomValues(new Uint8Array(32)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')}` as `0x${string}`,
     [],
   )
 
@@ -41,7 +51,7 @@ export default function StudioPage() {
     [template, recipients],
   )
 
-  const initialNodes = useMemo<Node[]>(() => {
+  const nodesFromIr = useMemo<Node[]>(() => {
     const asset = getAsset(ir.asset)
     return [
       {
@@ -65,27 +75,36 @@ export default function StudioPage() {
       {
         id: 'action',
         type: 'action',
-        position: { x: 320, y: 320 },
+        position: { x: 340, y: 320 },
         data: {
           title: 'Split transfer',
-          summary: `Distribute the full balance across ${recipients.length} recipients`,
+          summary: `Distribute the full balance across ${recipients.length} recipient${
+            recipients.length === 1 ? '' : 's'
+          }`,
         },
       },
     ]
   }, [ir, recipients])
 
-  const initialEdges = useMemo(
-    () => [
-      { id: 'a-t', source: 'asset', target: 'trigger', animated: false },
-      { id: 't-c', source: 'trigger', target: 'confidential' },
-      { id: 't-x', source: 'trigger', target: 'action' },
-    ],
-    [],
-  )
-
-  const [nodes, , onNodesChange] = useNodesState(initialNodes)
-  const [edges, , onEdgesChange] = useEdgesState(initialEdges)
+  const [nodes, setNodes, onNodesChange] = useNodesState(nodesFromIr)
+  const [edges, , onEdgesChange] = useEdgesState([
+    { id: 'a-t', source: 'asset', target: 'trigger' },
+    { id: 't-c', source: 'trigger', target: 'confidential' },
+    { id: 't-x', source: 'trigger', target: 'action' },
+  ])
   const [selected, setSelected] = useState<string | null>(null)
+
+  // Keep node *data* in sync with the draft while preserving positions the user
+  // has dragged. Replacing the whole array would yank nodes back to their seed
+  // positions on every keystroke.
+  useEffect(() => {
+    setNodes((current) =>
+      current.map((n) => {
+        const fresh = nodesFromIr.find((f) => f.id === n.id)
+        return fresh ? { ...n, data: fresh.data } : n
+      }),
+    )
+  }, [nodesFromIr, setNodes])
 
   const onSelectionChange = useCallback(
     ({ nodes: sel }: { nodes: Node[] }) => setSelected(sel[0]?.id ?? null),
@@ -111,13 +130,20 @@ export default function StudioPage() {
           </RailButton>
         </>
       }
-      inspector={<Inspector nodeId={selected} ir={ir} recipients={recipients} />}
+      inspector={
+        <Inspector
+          nodeId={selected}
+          ir={ir}
+          recipients={recipients}
+          onRecipientsChange={setRecipients}
+        />
+      }
     >
       <TopBar
         title={ir.name}
         subtitle={
           <span style={{ display: 'inline-flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-            Draft
+            {deployed ? <Badge tone="success">Deployed</Badge> : 'Draft'}
             <span style={{ color: 'var(--border-strong)' }}>·</span>
             {template.title}
           </span>
@@ -127,6 +153,7 @@ export default function StudioPage() {
             <select
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
+              aria-label="Template"
               style={{
                 padding: '6px var(--space-3)',
                 border: '1px solid var(--border-strong)',
@@ -142,8 +169,9 @@ export default function StudioPage() {
                 </option>
               ))}
             </select>
-            <Button variant="secondary">Review</Button>
-            <Button variant="primary">Deploy policy</Button>
+            <Button variant="primary" onClick={() => setReviewing(true)}>
+              Review and deploy
+            </Button>
           </>
         }
       />
@@ -164,14 +192,26 @@ export default function StudioPage() {
           minZoom={0.4}
           maxZoom={1.6}
           proOptions={{ hideAttribution: true }}
-          defaultEdgeOptions={{
-            style: { stroke: 'var(--border-strong)', strokeWidth: 1.5 },
-          }}
+          defaultEdgeOptions={{ style: { stroke: 'var(--border-strong)', strokeWidth: 1.5 } }}
         >
           <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#e4e4e7" />
           <Controls showInteractive={false} />
         </ReactFlow>
       </div>
+
+      {reviewing && (
+        <ReviewDrawer
+          ir={ir}
+          salt={salt}
+          onClose={() => setReviewing(false)}
+          onDeploy={(compiled) => {
+            // Wallet + factory call lands next. Compiling for real here means
+            // the review already proves the policy is deployable.
+            setDeployed(compiled)
+            setReviewing(false)
+          }}
+        />
+      )}
     </Shell>
   )
 }
@@ -180,85 +220,77 @@ function Inspector({
   nodeId,
   ir,
   recipients,
+  onRecipientsChange,
 }: {
   nodeId: string | null
   ir: Record<string, any>
-  recipients: Array<{ address: string; shareBps: number; label?: string }>
+  recipients: Recipient[]
+  onRecipientsChange: (next: Recipient[]) => void
 }) {
-  if (!nodeId) {
-    return (
-      <Panel title="Policy">
-        <Row label="Template" value={ir.name} />
-        <Row label="Asset" value={ir.asset} />
-        <Row label="Trigger" value={describeTrigger(ir.trigger).title} />
-        <p
-          style={{
-            fontSize: 12.5,
-            color: 'var(--text-tertiary)',
-            marginTop: 'var(--space-5)',
-            lineHeight: 1.55,
-          }}
-        >
-          Select a node to configure it.
-        </p>
-      </Panel>
-    )
-  }
-
   if (nodeId === 'confidential') {
     return (
       <Panel title="Confidential inputs">
-        <div style={{ marginBottom: 'var(--space-4)' }}>
-          <Badge tone="confidential">Encrypted before it leaves your browser</Badge>
-        </div>
-        {recipients.map((r) => (
-          <div
-            key={r.address}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: 'var(--space-3) 0',
-              borderBottom: '1px solid var(--border-subtle)',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 520 }}>{r.label ?? 'Recipient'}</div>
-              <div style={{ marginTop: 2 }}>
-                <Address value={r.address} />
-              </div>
-            </div>
-            <Share bps={r.shareBps} />
-          </div>
-        ))}
-        <p
-          style={{
-            fontSize: 12.5,
-            color: 'var(--text-secondary)',
-            marginTop: 'var(--space-4)',
-            lineHeight: 1.55,
-          }}
-        >
-          Only a fingerprint of this list is written on-chain — enough to prove nobody
-          substituted a different recipient, not enough to read who they are.
+        <RecipientsEditor recipients={recipients} onChange={onRecipientsChange} />
+      </Panel>
+    )
+  }
+
+  if (nodeId === 'asset') {
+    const asset = getAsset(ir.asset)
+    return (
+      <Panel title="Asset">
+        <Row label="Symbol" value={asset.symbol} />
+        <Row label="Underlying" value={asset.name} />
+        <Row label="Decimals" value={String(asset.decimals)} />
+        <p style={helpText}>
+          Held as an FAsset so your {asset.name} can participate in a policy without leaving
+          your control.
         </p>
       </Panel>
     )
   }
 
-  const meta: Record<string, { title: string; body: string }> = {
-    asset: { title: 'Asset', body: 'What this policy governs.' },
-    trigger: { title: 'Trigger', body: 'What causes the policy to run.' },
-    action: { title: 'Action', body: 'What happens when it does.' },
+  if (nodeId === 'trigger') {
+    const t = describeTrigger(ir.trigger)
+    return (
+      <Panel title="Trigger">
+        <Row label="Condition" value={t.title} />
+        <Row label="Detail" value={t.summary} />
+        <p style={helpText}>What causes this policy to run. Nothing happens before it does.</p>
+      </Panel>
+    )
   }
-  const m = meta[nodeId] ?? { title: 'Node', body: '' }
+
+  if (nodeId === 'action') {
+    return (
+      <Panel title="Action">
+        <Row label="Type" value="Split transfer" />
+        <Row label="Recipients" value={String(recipients.length)} />
+        <p style={helpText}>
+          The whole balance is distributed by the shares you set, so nothing is ever left
+          stranded in the policy.
+        </p>
+      </Panel>
+    )
+  }
 
   return (
-    <Panel title={m.title}>
-      <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{m.body}</p>
+    <Panel title="Policy">
+      <Row label="Template" value={ir.name} />
+      <Row label="Asset" value={ir.asset} />
+      <Row label="Trigger" value={describeTrigger(ir.trigger).title} />
+      <Row label="Recipients" value={String(recipients.length)} />
+      <p style={helpText}>Select a node to configure it.</p>
     </Panel>
   )
 }
+
+const helpText = {
+  fontSize: 12.5,
+  color: 'var(--text-secondary)',
+  marginTop: 'var(--space-4)',
+  lineHeight: 1.55,
+} as const
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -317,14 +349,10 @@ function Row({ label, value }: { label: string; value: string }) {
 function describeTrigger(trigger: Record<string, any>): { title: string; summary: string } {
   switch (trigger.kind) {
     case 'manualHeartbeat':
-      return {
-        title: 'If you stop checking in',
-        summary: `After ${formatInterval(trigger.intervalSeconds)} without a check-in`,
-      }
     case 'chainProofOfLife':
       return {
         title: 'If you stop checking in',
-        summary: `After ${formatInterval(trigger.intervalSeconds)} with no proof-of-life payment`,
+        summary: `After ${formatInterval(trigger.intervalSeconds)} without a check-in`,
       }
     case 'timestamp':
       return {
