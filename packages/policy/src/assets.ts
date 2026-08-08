@@ -15,10 +15,17 @@
 export type AddressFormat = 'xrpl' | 'btc' | 'doge'
 
 export type SupportedAsset = {
+  /** What we call it in the product. */
   symbol: string
   name: string
   /** FlareContractRegistry key -> AssetManager -> fAsset(). Never a hardcoded token address. */
   assetManagerKey: string
+  /**
+   * The token's own `symbol()`, where it differs from ours. Testnet FAssets are
+   * prefixed (FTestXRP), and showing that in the primary flow would confuse
+   * users about which asset they hold.
+   */
+  onChainSymbol?: string
   decimals: number
   /** FDC attestation source id, e.g. 'testXRP'. */
   fdcSourceId: string
@@ -37,6 +44,15 @@ export const ASSETS: Record<string, SupportedAsset> = {
     symbol: 'FXRP',
     name: 'XRP',
     assetManagerKey: 'AssetManagerFXRP',
+    // Verified on-chain, Coston2: registry -> AssetManagerFXRP
+    // (0xc1Ca...bDFA) -> fAsset() -> 0x0b6A3645c240605887a5532109323A3E12273dc7,
+    // which reports name "FXRP", symbol "FTestXRP", decimals 6.
+    //
+    // The testnet token's *symbol* is FTestXRP, not FXRP. We deliberately show
+    // "FXRP" in the UI because that is the asset users are reasoning about; the
+    // on-chain symbol appears in the under-the-hood panel where precision
+    // matters more than familiarity.
+    onChainSymbol: 'FTestXRP',
     decimals: 6,
     fdcSourceId: 'testXRP',
     // XRP/USD. Verify against the Flare dev hub feed table before mainnet.

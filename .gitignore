@@ -15,3 +15,6 @@ out/
 
 # Internal planning notes -- kept local, not published
 plan.md
+packages/contracts/broadcast/
+packages/contracts/cache/
+packages/contracts/deployments/*.json

@@ -12,7 +12,13 @@ via_ir = false
 # assert against the exact bytes the TypeScript implementation produced -- copying
 # the values into a Solidity constant would defeat the purpose, since the copy
 # would not notice when the source changed.
-fs_permissions = [{ access = "read", path = "../policy/fixtures" }]
+fs_permissions = [
+  { access = "read", path = "../policy/fixtures" },
+  # Deploy.s.sol writes the resolved addresses here so the web app and
+  # orchestrator read one generated file rather than each keeping a copy.
+  # Without write access this fails *after* broadcast, having already spent gas.
+  { access = "read-write", path = "./deployments" },
+]
 
 [rpc_endpoints]
 coston2 = "https://coston2-api.flare.network/ext/C/rpc"
