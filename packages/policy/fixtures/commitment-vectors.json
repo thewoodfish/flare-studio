@@ -1,0 +1,73 @@
+[
+  {
+    "name": "single-recipient",
+    "distributions": [
+      {
+        "recipient": "0x1111111111111111111111111111111111111111",
+        "amount": "10000"
+      }
+    ],
+    "salt": "0x1111111111111111111111111111111111111111111111111111111111111111",
+    "expected": "0x00668b9a341f8a76fa6e05b1ca353f003f883eb9d1033d9af54fba9953babed0"
+  },
+  {
+    "name": "two-recipients-uneven",
+    "distributions": [
+      {
+        "recipient": "0x1111111111111111111111111111111111111111",
+        "amount": "6000"
+      },
+      {
+        "recipient": "0x2222222222222222222222222222222222222222",
+        "amount": "4000"
+      }
+    ],
+    "salt": "0xabababababababababababababababababababababababababababababababab",
+    "expected": "0xf7745d5322d6d81385276180dc46e22c91d26ca8504d0845686ded4e460fd3f6"
+  },
+  {
+    "name": "many-recipients",
+    "distributions": [
+      {
+        "recipient": "0x1111111111111111111111111111111111111111",
+        "amount": "2500"
+      },
+      {
+        "recipient": "0x2222222222222222222222222222222222222222",
+        "amount": "2500"
+      },
+      {
+        "recipient": "0x3333333333333333333333333333333333333333",
+        "amount": "2500"
+      },
+      {
+        "recipient": "0x4444444444444444444444444444444444444444",
+        "amount": "2500"
+      }
+    ],
+    "salt": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "expected": "0xf9276b71f1139c23d3ddc0166d335161b2eaa4d2d1233a52259a36776432caa7"
+  },
+  {
+    "name": "zero-salt",
+    "distributions": [
+      {
+        "recipient": "0x1111111111111111111111111111111111111111",
+        "amount": "10000"
+      }
+    ],
+    "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "expected": "0x03d256998d3a801032de91bb1f020d3ab67b3f8e27935227d317948992e99bf8"
+  },
+  {
+    "name": "max-address-and-share",
+    "distributions": [
+      {
+        "recipient": "0xffffffffffffffffffffffffffffffffffffffff",
+        "amount": "10000"
+      }
+    ],
+    "salt": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "expected": "0x0cce7a3374fc95535025adb6a10a2d56a82f1dd225ef092e1842396b6ac3c6fb"
+  }
+]

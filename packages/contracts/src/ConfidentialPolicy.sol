@@ -33,9 +33,19 @@ contract ConfidentialPolicy is Initializable, EIP712 {
 
     /// @dev `recipient`, not `beneficiary`. Template vocabulary must not reach the
     ///      engine -- scripts/lint-genericity.sh enforces this in CI.
-    struct Distribution {
+    ///
+    ///      Shares, not amounts. The balance at execution time cannot be known
+    ///      when the policy is written -- the entire point is that it fires at
+    ///      some unknown future moment -- so the commitment is taken over
+    ///      proportions and this contract does the arithmetic itself.
+    ///
+    ///      The security consequence is the important part: the TEE cannot choose
+    ///      payout amounts at all. It authorises execution of a split that was
+    ///      fixed at deploy time and is enforced here. Even a fully compromised
+    ///      enclave cannot redirect funds or alter proportions.
+    struct Share {
         address recipient;
-        uint256 amount;
+        uint16 shareBps;
     }
 
     enum Status {
@@ -45,12 +55,13 @@ contract ConfidentialPolicy is Initializable, EIP712 {
         Cancelled
     }
 
-    bytes32 private constant DISTRIBUTION_TYPEHASH =
-        keccak256("Distribution(address recipient,uint256 amount)");
+    bytes32 private constant SHARE_TYPEHASH =
+        keccak256("Share(address recipient,uint16 shareBps)");
 
-    bytes32 private constant EXECUTION_TYPEHASH = keccak256(
-        "Execution(bytes32 commitment,bytes32 distributionsHash,uint256 triggeredAt)"
-    );
+    bytes32 private constant EXECUTION_TYPEHASH =
+        keccak256("Execution(bytes32 commitment,bytes32 sharesHash,uint256 triggeredAt)");
+
+    uint256 private constant TOTAL_BPS = 10_000;
 
     address public owner;
     IERC20 public asset;
@@ -74,7 +85,7 @@ contract ConfidentialPolicy is Initializable, EIP712 {
     error SignerNotAttested(address signer);
     error CommitmentMismatch();
     error NothingToDistribute();
-    error InsufficientBalance(uint256 required, uint256 available);
+    error SharesDoNotSumToTotal(uint256 totalBps);
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -157,52 +168,60 @@ contract ConfidentialPolicy is Initializable, EIP712 {
 
     // --- execution -----------------------------------------------------------
 
-    /// @notice Pay out the distribution the TEE computed from the private policy.
-    /// @param dists The revealed distribution set.
-    /// @param salt  The salt committed to at deploy time; without it the commitment
-    ///              would be brute-forceable over a small address space.
-    /// @param sig   EIP-712 signature from the TEE machine.
-    function execute(Distribution[] calldata dists, bytes32 salt, bytes calldata sig)
+    /// @notice Reveal the committed split and pay it out.
+    /// @param shares The revealed share set -- must hash to the stored commitment.
+    /// @param salt   The salt committed to at deploy time. Without it the
+    ///               commitment would be brute-forceable: a recipient set is
+    ///               low-entropy, and an attacker who guessed it could confirm
+    ///               the guess against the on-chain hash.
+    /// @param sig    EIP-712 signature from an attested TEE machine.
+    function execute(Share[] calldata shares, bytes32 salt, bytes calldata sig)
         external
         inStatus(Status.Triggered)
     {
-        if (keccak256(abi.encode(dists, salt)) != commitment) revert CommitmentMismatch();
+        if (keccak256(abi.encode(shares, salt)) != commitment) revert CommitmentMismatch();
 
         bytes32 digest = _hashTypedDataV4(
             keccak256(
-                abi.encode(
-                    EXECUTION_TYPEHASH, commitment, _hashDistributions(dists), triggeredAt
-                )
+                abi.encode(EXECUTION_TYPEHASH, commitment, _hashShares(shares), triggeredAt)
             )
         );
         address signer = ECDSA.recover(digest, sig);
         if (!attestorGate.isAttested(signer)) revert SignerNotAttested(signer);
 
-        uint256 total;
-        for (uint256 i = 0; i < dists.length; i++) {
-            total += dists[i].amount;
+        uint256 totalBps;
+        for (uint256 i = 0; i < shares.length; i++) {
+            totalBps += shares[i].shareBps;
         }
-        if (total == 0) revert NothingToDistribute();
+        if (totalBps != TOTAL_BPS) revert SharesDoNotSumToTotal(totalBps);
 
         uint256 available = asset.balanceOf(address(this));
-        if (available < total) revert InsufficientBalance(total, available);
+        if (available == 0) revert NothingToDistribute();
 
         // Set before transferring: these are arbitrary token contracts and a
         // malicious asset could re-enter. Status is the reentrancy guard.
         status = Status.Executed;
 
-        for (uint256 i = 0; i < dists.length; i++) {
-            asset.safeTransfer(dists[i].recipient, dists[i].amount);
+        // The last recipient absorbs the integer-division remainder so the sum
+        // is exactly the balance. Dust left behind would be stranded forever --
+        // the policy is Executed and can never fire again.
+        uint256 allocated;
+        for (uint256 i = 0; i < shares.length; i++) {
+            uint256 amount = i == shares.length - 1
+                ? available - allocated
+                : (available * shares[i].shareBps) / TOTAL_BPS;
+            allocated += amount;
+            asset.safeTransfer(shares[i].recipient, amount);
         }
 
-        emit PolicyExecuted(signer, total);
+        emit PolicyExecuted(signer, available);
     }
 
-    function _hashDistributions(Distribution[] calldata dists) internal pure returns (bytes32) {
-        bytes32[] memory hashes = new bytes32[](dists.length);
-        for (uint256 i = 0; i < dists.length; i++) {
+    function _hashShares(Share[] calldata shares) internal pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](shares.length);
+        for (uint256 i = 0; i < shares.length; i++) {
             hashes[i] =
-                keccak256(abi.encode(DISTRIBUTION_TYPEHASH, dists[i].recipient, dists[i].amount));
+                keccak256(abi.encode(SHARE_TYPEHASH, shares[i].recipient, shares[i].shareBps));
         }
         return keccak256(abi.encodePacked(hashes));
     }

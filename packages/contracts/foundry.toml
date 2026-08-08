@@ -8,6 +8,12 @@ optimizer = true
 optimizer_runs = 200
 via_ir = false
 
+# Read-only, and scoped to the shared commitment fixture. The Solidity suite must
+# assert against the exact bytes the TypeScript implementation produced -- copying
+# the values into a Solidity constant would defeat the purpose, since the copy
+# would not notice when the source changed.
+fs_permissions = [{ access = "read", path = "../policy/fixtures" }]
+
 [rpc_endpoints]
 coston2 = "https://coston2-api.flare.network/ext/C/rpc"
 

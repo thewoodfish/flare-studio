@@ -65,7 +65,7 @@ contract ConfidentialPolicyTest is Test {
     bytes32 internal constant SALT = keccak256("policy-salt");
 
     ConfidentialPolicy internal policy;
-    ConfidentialPolicy.Distribution[] internal dists;
+    ConfidentialPolicy.Share[] internal shares;
 
     function setUp() public {
         (teeId, teePk) = makeAddrAndKey("teeMachine");
@@ -80,10 +80,10 @@ contract ConfidentialPolicyTest is Test {
         factory = new PolicyFactory(address(implementation));
         asset = new TestToken();
 
-        dists.push(ConfidentialPolicy.Distribution({recipient: recipientA, amount: 600e18}));
-        dists.push(ConfidentialPolicy.Distribution({recipient: recipientB, amount: 400e18}));
+        shares.push(ConfidentialPolicy.Share({recipient: recipientA, shareBps: 6000}));
+        shares.push(ConfidentialPolicy.Share({recipient: recipientB, shareBps: 4000}));
 
-        policy = _deployPolicy(_commitmentFor(dists, SALT), true);
+        policy = _deployPolicy(_commitmentFor(shares, SALT), true);
 
         asset.mint(owner, FUNDING);
         vm.startPrank(owner);
@@ -106,32 +106,33 @@ contract ConfidentialPolicyTest is Test {
         trigger.configure(addr, owner, INTERVAL, demoMode);
     }
 
-    function _commitmentFor(
-        ConfidentialPolicy.Distribution[] memory d,
-        bytes32 salt
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(d, salt));
+    function _commitmentFor(ConfidentialPolicy.Share[] memory s, bytes32 salt)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(s, salt));
     }
 
     function _sign(ConfidentialPolicy p, uint256 pk) internal view returns (bytes memory) {
-        bytes32 distributionsHash;
+        bytes32 sharesHash;
         {
-            bytes32[] memory hashes = new bytes32[](dists.length);
-            bytes32 typehash = keccak256("Distribution(address recipient,uint256 amount)");
-            for (uint256 i = 0; i < dists.length; i++) {
+            bytes32[] memory hashes = new bytes32[](shares.length);
+            bytes32 typehash = keccak256("Share(address recipient,uint16 shareBps)");
+            for (uint256 i = 0; i < shares.length; i++) {
                 hashes[i] =
-                    keccak256(abi.encode(typehash, dists[i].recipient, dists[i].amount));
+                    keccak256(abi.encode(typehash, shares[i].recipient, shares[i].shareBps));
             }
-            distributionsHash = keccak256(abi.encodePacked(hashes));
+            sharesHash = keccak256(abi.encodePacked(hashes));
         }
 
         bytes32 structHash = keccak256(
             abi.encode(
                 keccak256(
-                    "Execution(bytes32 commitment,bytes32 distributionsHash,uint256 triggeredAt)"
+                    "Execution(bytes32 commitment,bytes32 sharesHash,uint256 triggeredAt)"
                 ),
                 p.commitment(),
-                distributionsHash,
+                sharesHash,
                 p.triggeredAt()
             )
         );
@@ -167,7 +168,7 @@ contract ConfidentialPolicyTest is Test {
 
     function test_fullLifecycle_distributesToRecipients() public {
         _arm(policy);
-        policy.execute(dists, SALT, _sign(policy, teePk));
+        policy.execute(shares, SALT, _sign(policy, teePk));
 
         assertEq(asset.balanceOf(recipientA), 600e18);
         assertEq(asset.balanceOf(recipientB), 400e18);
@@ -203,7 +204,7 @@ contract ConfidentialPolicyTest is Test {
         // and expectRevert applies to the very next call of any kind.
         bytes memory sig = _sign(policy, impostorPk);
         vm.expectRevert();
-        policy.execute(dists, SALT, sig);
+        policy.execute(shares, SALT, sig);
     }
 
     /// @dev INITIALIZED is not PRODUCTION. A machine that registered but is not
@@ -213,7 +214,7 @@ contract ConfidentialPolicyTest is Test {
         _arm(policy);
         bytes memory sig = _sign(policy, teePk);
         vm.expectRevert();
-        policy.execute(dists, SALT, sig);
+        policy.execute(shares, SALT, sig);
     }
 
     /// @dev The commitment is what stops even an attested machine from
@@ -223,38 +224,38 @@ contract ConfidentialPolicyTest is Test {
         // The attested machine itself tries to redirect the payout: it signs the
         // tampered set honestly, so only the commitment stands between the
         // recipients and an attacker.
-        dists[0].recipient = makeAddr("attacker");
+        shares[0].recipient = makeAddr("attacker");
         bytes memory sig = _sign(policy, teePk);
         vm.expectRevert(ConfidentialPolicy.CommitmentMismatch.selector);
-        policy.execute(dists, SALT, sig);
+        policy.execute(shares, SALT, sig);
     }
 
     function test_revert_wrongSalt() public {
         _arm(policy);
         bytes memory sig = _sign(policy, teePk);
         vm.expectRevert(ConfidentialPolicy.CommitmentMismatch.selector);
-        policy.execute(dists, keccak256("wrong"), sig);
+        policy.execute(shares, keccak256("wrong"), sig);
     }
 
     function test_revert_executeBeforeArmed() public {
         bytes memory sig = _sign(policy, teePk);
         vm.expectRevert();
-        policy.execute(dists, SALT, sig);
+        policy.execute(shares, SALT, sig);
     }
 
     function test_revert_replayAfterExecution() public {
         _arm(policy);
         bytes memory sig = _sign(policy, teePk);
-        policy.execute(dists, SALT, sig);
+        policy.execute(shares, SALT, sig);
         vm.expectRevert();
-        policy.execute(dists, SALT, sig);
+        policy.execute(shares, SALT, sig);
     }
 
     /// @dev Each policy is its own EIP-712 domain, so a valid signature for one
     ///      policy must not authorise another -- even with identical contents and
     ///      the same attested signer.
     function test_revert_signatureFromAnotherPolicy() public {
-        ConfidentialPolicy other = _deployPolicy(_commitmentFor(dists, SALT), true);
+        ConfidentialPolicy other = _deployPolicy(_commitmentFor(shares, SALT), true);
         asset.mint(address(other), FUNDING);
 
         _arm(policy);
@@ -262,11 +263,11 @@ contract ConfidentialPolicyTest is Test {
 
         bytes memory sigForOther = _sign(other, teePk);
         vm.expectRevert();
-        policy.execute(dists, SALT, sigForOther);
+        policy.execute(shares, SALT, sigForOther);
     }
 
     function test_revert_armBeforeDeadline() public {
-        ConfidentialPolicy fresh = _deployPolicy(_commitmentFor(dists, SALT), true);
+        ConfidentialPolicy fresh = _deployPolicy(_commitmentFor(shares, SALT), true);
         vm.expectRevert(ConfidentialPolicy.TriggerNotMet.selector);
         fresh.arm("");
     }
@@ -274,7 +275,7 @@ contract ConfidentialPolicyTest is Test {
     /// @dev simulateInactivity is demo scaffolding living in a production contract.
     ///      The flag is what keeps it inert for real policies, so prove it.
     function test_revert_simulateInactivityWhenDemoModeOff() public {
-        ConfidentialPolicy real = _deployPolicy(_commitmentFor(dists, SALT), false);
+        ConfidentialPolicy real = _deployPolicy(_commitmentFor(shares, SALT), false);
         vm.prank(owner);
         vm.expectRevert(ManualHeartbeatTrigger.DemoModeDisabled.selector);
         trigger.simulateInactivity(address(real));
@@ -297,6 +298,37 @@ contract ConfidentialPolicyTest is Test {
         policy.cancel();
         assertEq(asset.balanceOf(owner), FUNDING);
         assertEq(uint8(policy.status()), uint8(ConfidentialPolicy.Status.Cancelled));
+    }
+
+    /// @dev The whole point of committing to shares rather than amounts: a
+    ///      compromised enclave holding a valid signing key still cannot move
+    ///      funds anywhere except to the recipients, in the proportions, fixed at
+    ///      deploy time. It signs; it does not decide.
+    function test_revert_attestedMachineCannotAlterProportions() public {
+        _arm(policy);
+        shares[0].shareBps = 9999;
+        shares[1].shareBps = 1;
+        bytes memory sig = _sign(policy, teePk);
+        vm.expectRevert(ConfidentialPolicy.CommitmentMismatch.selector);
+        policy.execute(shares, SALT, sig);
+    }
+
+    /// @dev Integer division must not strand dust: once Executed the policy can
+    ///      never fire again, so anything left behind is lost forever.
+    function test_indivisibleBalanceLeavesNoDust() public {
+        ConfidentialPolicy p = _deployPolicy(_commitmentFor(shares, SALT), true);
+        uint256 awkward = 1_000_000_007; // prime, does not divide by 6000/4000
+        asset.mint(address(p), awkward);
+
+        _arm(p);
+        p.execute(shares, SALT, _sign(p, teePk));
+
+        assertEq(asset.balanceOf(address(p)), 0, "dust stranded in policy");
+        assertEq(
+            asset.balanceOf(recipientA) + asset.balanceOf(recipientB),
+            awkward + FUNDING * 0,
+            "total distributed must equal balance"
+        );
     }
 
     // --- genericity ----------------------------------------------------------
