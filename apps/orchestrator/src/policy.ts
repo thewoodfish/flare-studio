@@ -1,0 +1,105 @@
+import type { Address, Hex, PublicClient, WalletClient } from 'viem'
+import { confidentialPolicyAbi } from './abi.js'
+import {
+  decodeActionData,
+  pollActionResult,
+  sendEvaluatePolicy,
+  type PollOptions,
+} from './instructions.js'
+
+/**
+ * The evaluate-then-execute round trip, which is where the design earns its keep.
+ *
+ * Everything the enclave returns is checked again on-chain: the shares must hash
+ * to the commitment fixed at deploy time, and the signer must be a PRODUCTION
+ * machine. So this function can be wrong, or hostile, without being dangerous --
+ * the worst it can do is submit something the contract rejects.
+ */
+
+/** Mirrors the enclave's EvaluatePolicyResponse. */
+export type EvaluationResult = {
+  policy: Address
+  shares: { recipient: Address; shareBps: number }[]
+  salt: Hex
+  signature: Hex
+}
+
+/**
+ * Asks the enclave to evaluate an armed policy and returns its signed answer.
+ *
+ * `triggeredAt` is read from the policy rather than taken as a parameter: it is
+ * what binds the signature to this specific arming, and a caller-supplied value
+ * that drifted from on-chain state would produce a signature that silently fails
+ * to recover.
+ */
+export async function evaluatePolicy(
+  clients: { public: PublicClient; wallet: WalletClient },
+  { instructionSender, policy, extProxyUrl }: {
+    instructionSender: Address
+    policy: Address
+    /** The extension proxy's public URL -- the same value registered on-chain. */
+    extProxyUrl: string
+  },
+  options: PollOptions = {},
+): Promise<EvaluationResult> {
+  const triggeredAt = await clients.public.readContract({
+    address: policy,
+    abi: confidentialPolicyAbi,
+    functionName: 'triggeredAt',
+  })
+
+  if (triggeredAt === 0n) {
+    throw new Error(`policy ${policy} is not armed; call arm() before evaluating`)
+  }
+
+  const { instructionId } = await sendEvaluatePolicy(
+    clients,
+    instructionSender,
+    policy,
+    triggeredAt,
+  )
+
+  const response = await pollActionResult(extProxyUrl, instructionId, options)
+
+  return decodeActionData<EvaluationResult>(response)
+}
+
+/**
+ * Submits the enclave's distribution to the policy.
+ *
+ * Simulating before sending is what turns a bare "execution reverted" into the
+ * actual custom error -- CommitmentMismatch, SignerNotAttested, WrongStatus --
+ * which is the difference between a five-minute fix and an afternoon. viem's
+ * simulate also hands back the prepared request, so this costs nothing extra.
+ */
+export async function executePolicy(
+  clients: { public: PublicClient; wallet: WalletClient },
+  policy: Address,
+  evaluation: EvaluationResult,
+): Promise<Hex> {
+  const account = clients.wallet.account
+  if (!account) throw new Error('wallet client has no account')
+
+  const args = [
+    evaluation.shares.map((s) => ({ recipient: s.recipient, shareBps: s.shareBps })),
+    evaluation.salt,
+    evaluation.signature,
+  ] as const
+
+  const { request } = await clients.public.simulateContract({
+    address: policy,
+    abi: confidentialPolicyAbi,
+    functionName: 'execute',
+    args: args as never,
+    account,
+  })
+
+  const txHash = await clients.wallet.writeContract(request)
+  const receipt = await clients.public.waitForTransactionReceipt({ hash: txHash })
+
+  if (receipt.status !== 'success') {
+    throw new Error(`execute reverted (tx ${txHash})`)
+  }
+
+  return txHash
+}

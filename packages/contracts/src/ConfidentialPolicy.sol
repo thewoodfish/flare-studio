@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import {ITrigger} from "./interfaces/ITrigger.sol";
@@ -181,12 +182,22 @@ contract ConfidentialPolicy is Initializable, EIP712 {
     {
         if (keccak256(abi.encode(shares, salt)) != commitment) revert CommitmentMismatch();
 
+        // The EIP-712 digest, exactly as a typed-data signer would produce it: the
+        // domain separator is derived from address(this), so a signature for one
+        // clone is worthless against another.
         bytes32 digest = _hashTypedDataV4(
             keccak256(
                 abi.encode(EXECUTION_TYPEHASH, commitment, _hashShares(shares), triggeredAt)
             )
         );
-        address signer = ECDSA.recover(digest, sig);
+
+        // ...then wrapped in the EIP-191 personal-sign prefix, because the TEE node
+        // signs via accounts.TextHash and offers no way to opt out. The enclave is
+        // handed the 66-byte preimage (0x1901 || domainSeparator || structHash) so
+        // that its own keccak lands on `digest`; TextHash then adds this envelope.
+        // Recovering against the bare digest -- the obvious reading of this code --
+        // silently fails for every signature a real machine can produce.
+        address signer = ECDSA.recover(MessageHashUtils.toEthSignedMessageHash(digest), sig);
         if (!attestorGate.isAttested(signer)) revert SignerNotAttested(signer);
 
         uint256 totalBps;

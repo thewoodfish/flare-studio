@@ -3,6 +3,7 @@ pragma solidity ^0.8.25;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import {ConfidentialPolicy} from "../src/ConfidentialPolicy.sol";
 import {PolicyFactory} from "../src/PolicyFactory.sol";
@@ -137,10 +138,19 @@ contract ConfidentialPolicyTest is Test {
             )
         );
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(bytes1(0x19), bytes1(0x01), _domainSeparator(p), structHash)
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, digest);
+        // The 66-byte EIP-712 preimage. The enclave hands exactly these bytes to the
+        // TEE node's POST /sign, which keccak-hashes whatever it is given -- so the
+        // node's own hashing is what produces `digest`.
+        bytes memory preimage =
+            abi.encodePacked(bytes1(0x19), bytes1(0x01), _domainSeparator(p), structHash);
+        bytes32 digest = keccak256(preimage);
+
+        // The node then signs via accounts.TextHash, adding the EIP-191 envelope.
+        // Signing `digest` directly here would pass this test and fail against every
+        // real machine, which is precisely the bug this line exists to prevent.
+        bytes32 signedHash = MessageHashUtils.toEthSignedMessageHash(digest);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, signedHash);
         return abi.encodePacked(r, s, v);
     }
 
