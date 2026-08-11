@@ -1,0 +1,75 @@
+name: CI
+
+# Everything here is fast and hermetic. The one thing deliberately absent is
+# `pnpm demo`: it costs gas, needs a funded key and a running enclave, and is
+# meant to be run by a person before a demo. A CI job that needs a funded wallet
+# is a CI job that gets disabled the first time it flakes.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  genericity:
+    name: Genericity guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The guard reads `git ls-files`, so it needs the real index rather than
+      # an export -- checkout gives it that, but a shallow clone is fine.
+      - run: ./scripts/lint-genericity.sh
+
+  contracts:
+    name: Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: forge build
+        working-directory: packages/contracts
+        run: forge build
+      - name: forge test
+        working-directory: packages/contracts
+        run: forge test -vv
+
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Test
+        # Contracts have their own job; -r would run forge here without Foundry.
+        run: pnpm --filter @flare-studio/policy --filter @flare-studio/orchestrator test
+      - name: Typecheck
+        run: pnpm -r typecheck
+      - name: Build the web app
+        run: pnpm --filter @flare-studio/web build
+
+  extension:
+    name: Go extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/extension/go/go.mod
+          cache-dependency-path: apps/extension/go/go.sum
+      - name: go test
+        working-directory: apps/extension/go
+        run: go test ./...
+      - name: go vet
+        working-directory: apps/extension/go
+        run: go vet ./...

@@ -10,8 +10,13 @@ broadcast/
 config/extension.env
 *.log
 .DS_Store
-lib/
 out/
+
+# There is deliberately no `lib/` rule here. It was blanket-ignoring three
+# directories of real source -- apps/web/lib, apps/extension/scripts/lib, and
+# the Foundry dependencies -- which meant commits that looked complete did not
+# build from a fresh clone. Foundry deps are pinned submodules now, so nothing
+# under any lib/ needs ignoring. Do not reintroduce the pattern.
 
 # Internal planning notes -- kept local, not published
 plan.md

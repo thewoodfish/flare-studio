@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "demo": "tsx scripts/demo.ts"
   },
   "dependencies": {
     "@flare-studio/policy": "workspace:*",

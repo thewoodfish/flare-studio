@@ -48,7 +48,11 @@ EXCLUDES=(
   ':!*templates*'
   ':!*fixtures*'
   ':!*.md'
-  ':!*lib/*'
+  # Scoped to the Foundry dependencies, not every path containing "lib". The
+  # blanket form also skipped apps/extension/scripts/lib, which is our own code
+  # and squarely in scope. (Since those deps became submodules, git ls-files no
+  # longer descends into them anyway -- this is belt and braces.)
+  ':!packages/contracts/lib/*'
 )
 
 existing=()
@@ -61,16 +65,49 @@ fi
 files=$(git ls-files -- "${existing[@]}" "${EXCLUDES[@]}" 2>/dev/null)
 [ -z "$files" ] && { echo "genericity: no tracked source files yet"; exit 0; }
 
-# Strip comments, then match. Handles // line comments, /* */ block comments,
-# and /// or * doc-comment continuation lines.
+# Strip comments, then match. The guard checks CODE: prose that explains the rule
+# ("recipient, not beneficiary") is desirable, and Solidity's @inheritdoc tag
+# contains "inherit".
+#
+# Two comment styles, because the scopes span two families. Solidity, Go and
+# TypeScript use // and /* */; the extension also brings shell, Python, YAML,
+# TOML and Dockerfiles, which use #. Handling only the first family meant every
+# `#` comment in apps/extension was searched as if it were code -- which is a
+# false-positive generator, and false positives are what get a guard disabled.
+
+# Deliberately a function rather than a `case` inside the substitution below:
+# bash 3.2 -- still what macOS ships -- mis-parses a case pattern's `)` as the
+# end of a `$( )`. That would have passed CI on bash 5 and failed only on the
+# machines this is actually run from.
+comment_style() {
+  case "$1" in
+    *.sh|*.bash|*.py|*.yaml|*.yml|*.toml|*.env|*.mk|*Dockerfile*|*Makefile*) echo hash ;;
+    *) echo cstyle ;;
+  esac
+}
+
 stripped=$(
   while IFS= read -r f; do
-    awk -v file="$f" '
+    style=$(comment_style "$f")
+
+    awk -v file="$f" -v style="$style" '
       { line = $0 }
-      # drop full-line doc/block comments
-      line ~ /^[[:space:]]*(\/\/|\/\*|\*)/ { next }
-      # drop trailing line comments
-      { sub(/\/\/.*$/, "", line) }
+
+      style == "cstyle" {
+        # full-line doc/block comments
+        if (line ~ /^[[:space:]]*(\/\/|\/\*|\*)/) next
+        # trailing line comments
+        sub(/\/\/.*$/, "", line)
+      }
+
+      style == "hash" {
+        # full-line comments, including the #! shebang
+        if (line ~ /^[[:space:]]*#/) next
+        # trailing comments, only when preceded by whitespace -- so a URL
+        # fragment or a shell ${#var} is not mistaken for a comment
+        sub(/[[:space:]]#.*$/, "", line)
+      }
+
       line ~ /^[[:space:]]*$/ { next }
       { print file ":" FNR ":" line }
     ' "$f"

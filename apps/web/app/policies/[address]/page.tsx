@@ -10,14 +10,21 @@ import { Amount, Address as AddressChip, Badge, Duration, Share } from '@/compon
 import { WalletButton } from '@/components/wallet-button'
 import { publicClient, useWallet, walletClient, walletErrorMessage } from '@/lib/wallet'
 import { readHeartbeatConfig, readPolicy, type PolicySummary } from '@/lib/policies'
-import { ADDRESSES, coston2, explorerAddress, explorerTx } from '@/lib/chain'
+import {
+  ADDRESSES,
+  coston2,
+  enclaveHandoffConfigured,
+  explorerAddress,
+  explorerTx,
+} from '@/lib/chain'
+import { storePolicyOnChain } from '@/lib/store-policy'
 import {
   confidentialPolicyAbi,
   erc20Abi,
   manualHeartbeatTriggerAbi,
   PolicyStatus,
 } from '@/lib/abi'
-import { getEntry, type VaultEntry } from '@/lib/vault'
+import { getEntry, saveEntry, type VaultEntry } from '@/lib/vault'
 
 /**
  * The Monitor.
@@ -234,6 +241,16 @@ export default function PolicyPage() {
 
               {entry && <Recipients entry={entry} />}
 
+              {entry && (
+                <EnclaveHandoff
+                  entry={entry}
+                  account={wallet.account}
+                  busy={busy}
+                  send={send}
+                  onStored={() => setEntry(getEntry(address))}
+                />
+              )}
+
               {policy.status === 0 && (
                 <Funding
                   policy={policy}
@@ -330,6 +347,102 @@ function Recipients({ entry }: { entry: VaultEntry }) {
       >
         Visible because this is your browser. The network holds only a hash of this list.
       </p>
+    </Card>
+  )
+}
+
+/**
+ * The enclave hand-off, and its retry.
+ *
+ * Worth a card of its own rather than a line in a status list, because it is the
+ * difference between a policy that will execute and one that cannot. Until the
+ * sealed payload reaches the enclave, the recipient list exists only in this
+ * browser -- the chain holds a hash, and a hash pays nobody.
+ */
+function EnclaveHandoff({
+  entry,
+  account,
+  busy,
+  send,
+  onStored,
+}: {
+  entry: VaultEntry
+  account: Hex20 | null
+  busy: string | null
+  send: (label: string, run: () => Promise<Hex>) => Promise<void>
+  onStored: () => void
+}) {
+  const configured = enclaveHandoffConfigured()
+
+  if (entry.handoff) {
+    return (
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <Label>Enclave</Label>
+          <Badge tone="success">Holds this policy</Badge>
+        </div>
+        <p
+          style={{
+            fontSize: 12.5,
+            color: 'var(--text-secondary)',
+            lineHeight: 1.6,
+            marginTop: 'var(--space-2)',
+          }}
+        >
+          The sealed recipient list reached the enclave on-chain. It can now evaluate this
+          policy without you, and this browser is a backup rather than the only copy.
+        </p>
+        <div style={{ marginTop: 'var(--space-3)' }}>
+          <AddressChip value={entry.handoff.txHash} href={explorerTx(entry.handoff.txHash)} chars={8} />
+        </div>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+        <Label>Enclave</Label>
+        <Badge tone="warning">Not yet sent</Badge>
+      </div>
+      <p
+        style={{
+          fontSize: 12.5,
+          color: 'var(--text-secondary)',
+          lineHeight: 1.6,
+          marginTop: 'var(--space-2)',
+        }}
+      >
+        {!entry.ciphertext
+          ? 'Nothing has been sealed for this policy, because no enclave key was available when it was created. Until that is configured, the policy cannot be evaluated.'
+          : !configured
+            ? 'This build has no instruction sender configured, so the sealed list cannot be submitted from here.'
+            : 'The sealed recipient list has not reached the enclave. Until it does, this policy cannot be evaluated — and this browser holds the only copy.'}
+      </p>
+
+      {entry.ciphertext && configured && (
+        <div style={{ marginTop: 'var(--space-3)' }}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              if (!account || busy !== null) return
+              void send('handoff', async () => {
+                const result = await storePolicyOnChain({
+                  policy: entry.policy,
+                  ciphertext: entry.ciphertext!,
+                  account,
+                })
+                saveEntry({ ...entry, handoff: { ...result, at: Date.now() } })
+                onStored()
+                return result.txHash
+              })
+            }}
+            disabled={account === null || busy !== null}
+          >
+            {busy === 'handoff' ? 'Sending…' : 'Send to enclave'}
+          </Button>
+        </div>
+      )}
     </Card>
   )
 }
@@ -532,8 +645,13 @@ function UnderTheHood({
           <Detail label="Commitment" value={policy.commitment} mono />
           <Detail label="Attestor gate" value={ADDRESSES.teeAttestorGate} mono />
           <Detail
-            label="Sealed to enclave"
-            value={entry?.ciphertext ? `${(entry.ciphertext.length - 2) / 2} bytes` : 'not yet'}
+            label="Sealed payload"
+            value={entry?.ciphertext ? `${(entry.ciphertext.length - 2) / 2} bytes` : 'not sealed'}
+          />
+          <Detail
+            label="STORE instruction"
+            value={entry?.handoff?.instructionId ?? 'not sent'}
+            mono={entry?.handoff !== undefined}
           />
           <Detail
             label="Private half"
