@@ -7,6 +7,7 @@ import {ConfidentialPolicy} from "../src/ConfidentialPolicy.sol";
 import {PolicyFactory} from "../src/PolicyFactory.sol";
 import {TeeAttestorGate} from "../src/TeeAttestorGate.sol";
 import {ManualHeartbeatTrigger} from "../src/triggers/ManualHeartbeatTrigger.sol";
+import {TimestampTrigger} from "../src/triggers/TimestampTrigger.sol";
 import {IFlareContractRegistry, IAssetManager} from "../src/interfaces/IFlareContractRegistry.sol";
 
 /// @notice Deploys the policy engine to Coston2.
@@ -34,6 +35,7 @@ contract Deploy is Script {
         PolicyFactory factory = new PolicyFactory(address(implementation));
         TeeAttestorGate gate = new TeeAttestorGate(teeManager);
         ManualHeartbeatTrigger heartbeat = new ManualHeartbeatTrigger();
+        TimestampTrigger timestamp = new TimestampTrigger();
 
         vm.stopBroadcast();
 
@@ -43,10 +45,11 @@ contract Deploy is Script {
         console.log("PolicyFactory         ", address(factory));
         console.log("TeeAttestorGate       ", address(gate));
         console.log("ManualHeartbeatTrigger", address(heartbeat));
+        console.log("TimestampTrigger      ", address(timestamp));
         console.log("FXRP                  ", fxrp);
         console.log("FlareTeeManager       ", teeManager);
 
-        _writeAddresses(address(factory), address(gate), address(heartbeat), fxrp);
+        _writeAddresses(address(factory), address(gate), address(heartbeat), address(timestamp), fxrp);
     }
 
     /// @dev Registry -> AssetManager -> fAsset(). Three hops, zero hardcoded
@@ -59,15 +62,21 @@ contract Deploy is Script {
 
     /// @dev Emitted as JSON so the web app and orchestrator read addresses from
     ///      one generated file rather than each keeping their own copy.
-    function _writeAddresses(address factory, address gate, address trigger, address fxrp)
-        internal
-    {
+    function _writeAddresses(
+        address factory,
+        address gate,
+        address heartbeatTrigger,
+        address timestampTrigger,
+        address fxrp
+    ) internal {
         string memory json = string.concat(
             "{\n",
             '  "chainId": ', vm.toString(block.chainid), ",\n",
+            '  "deployBlock": ', vm.toString(block.number), ",\n",
             '  "policyFactory": "', vm.toString(factory), '",\n',
             '  "teeAttestorGate": "', vm.toString(gate), '",\n',
-            '  "manualHeartbeatTrigger": "', vm.toString(trigger), '",\n',
+            '  "manualHeartbeatTrigger": "', vm.toString(heartbeatTrigger), '",\n',
+            '  "timestampTrigger": "', vm.toString(timestampTrigger), '",\n',
             '  "fxrp": "', vm.toString(fxrp), '"\n',
             "}\n"
         );

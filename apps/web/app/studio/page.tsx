@@ -12,10 +12,14 @@ import {
 } from '@xyflow/react'
 import { TEMPLATES, getAsset, type CompiledPolicy } from '@flare-studio/policy'
 import { nodeTypes } from '@/components/nodes'
-import { Shell, RailButton, TopBar, Button } from '@/components/shell'
+import { Shell, TopBar, Button } from '@/components/shell'
+import { Rail } from '@/components/rail'
 import { Badge } from '@/components/primitives'
 import { RecipientsEditor, type Recipient } from '@/components/recipients-editor'
 import { ReviewDrawer } from '@/components/review-drawer'
+import { DeployDialog } from '@/components/deploy-dialog'
+import { WalletButton } from '@/components/wallet-button'
+import { useWallet } from '@/lib/wallet'
 
 /**
  * The policy builder.
@@ -31,8 +35,10 @@ export default function StudioPage() {
     { address: '0x2222222222222222222222222222222222222222', shareBps: 4000, label: 'Child' },
   ])
   const [reviewing, setReviewing] = useState(false)
-  const [deployed, setDeployed] = useState<CompiledPolicy | null>(null)
+  const [deploying, setDeploying] = useState<CompiledPolicy | null>(null)
+  const [deployed, setDeployed] = useState(false)
 
+  const wallet = useWallet()
   const template = TEMPLATES.find((t) => t.id === templateId)!
 
   // Stable for the session. In the real deploy path this is fresh randomness
@@ -113,23 +119,7 @@ export default function StudioPage() {
 
   return (
     <Shell
-      rail={
-        <>
-          <RailButton active label="Builder">
-            <svg width="17" height="17" viewBox="0 0 16 16" fill="none">
-              <rect x="2" y="2" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
-              <rect x="9" y="9" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
-              <path d="M7 4.5h3.5a1 1 0 0 1 1 1V9" stroke="currentColor" strokeWidth="1.4" />
-            </svg>
-          </RailButton>
-          <RailButton label="Policies">
-            <svg width="17" height="17" viewBox="0 0 16 16" fill="none">
-              <rect x="2.5" y="2" width="11" height="12" rx="1.6" stroke="currentColor" strokeWidth="1.4" />
-              <path d="M5.2 5.6h5.6M5.2 8h5.6M5.2 10.4h3.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            </svg>
-          </RailButton>
-        </>
-      }
+      rail={<Rail />}
       inspector={
         <Inspector
           nodeId={selected}
@@ -150,6 +140,7 @@ export default function StudioPage() {
         }
         actions={
           <>
+            <WalletButton wallet={wallet} />
             <select
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
@@ -205,11 +196,22 @@ export default function StudioPage() {
           salt={salt}
           onClose={() => setReviewing(false)}
           onDeploy={(compiled) => {
-            // Wallet + factory call lands next. Compiling for real here means
-            // the review already proves the policy is deployable.
-            setDeployed(compiled)
+            // The review already compiled for real, so what the user just read
+            // is exactly what is handed to the deploy flow -- no recompile, no
+            // opportunity for the two to disagree.
+            setDeploying(compiled)
             setReviewing(false)
           }}
+        />
+      )}
+
+      {deploying && (
+        <DeployDialog
+          compiled={deploying}
+          salt={salt}
+          templateId={templateId}
+          onClose={() => setDeploying(null)}
+          onDeployed={() => setDeployed(true)}
         />
       )}
     </Shell>

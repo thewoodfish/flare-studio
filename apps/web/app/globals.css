@@ -189,3 +189,10 @@ textarea {
   animation: shimmer 1.6s var(--ease) infinite;
   border-radius: var(--radius-sm);
 }
+
+/* The one indeterminate spinner in the product. Everything else that loads has
+   a known shape and gets a skeleton instead; a transaction awaiting a wallet
+   signature genuinely has no progress to report. */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

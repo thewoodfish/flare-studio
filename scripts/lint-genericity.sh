@@ -13,7 +13,28 @@
 # expensive to make true again later.
 set -uo pipefail
 
-BANNED='inherit|beneficiar|heir|dead[ -]?man'
+# Two passes, because `heir` is the one term whose case matters.
+#
+# Matched case-insensitively, `heir` fires on the word "their" -- which occurs in
+# ordinary prose throughout the extension scaffold. A left boundary alone does
+# not save it either: the boundary that separates `getHeir` from `their` is the
+# capital H, and `-i` throws that information away.
+#
+# So `heir` is matched case-sensitively in four forms: on a word boundary
+# (`heir`, ` heir`), after an underscore (`_heir`, which \b does not treat as a
+# boundary), camelCased (`getHeir`, `myHeir`), and shouting (`HEIR_ROLE`).
+# "their" and "Their" match none of them -- there is no word boundary between
+# the `t` and the `h`, and the capital-H forms require a capital H.
+#
+# Do NOT rewrite this as `(^|[^a-zA-Z])heir`. That is the obvious formulation and
+# it silently matches nothing under ugrep, which some contributors have as their
+# `grep`. \b behaves identically across GNU grep, BSD grep and ugrep; anchors
+# inside alternation groups do not.
+#
+# The other three stay case-insensitive and need no boundary -- they are matched
+# as prefixes so `inheritance`, `_beneficiary` and `DEADMAN` all trip.
+BANNED='inherit|beneficiar|dead[ -]?man'
+BANNED_HEIR='\b[Hh]eir|_[Hh]eir|[a-z]Heir|HEIR'
 
 SCOPES=(
   packages/contracts/src
@@ -42,7 +63,7 @@ files=$(git ls-files -- "${existing[@]}" "${EXCLUDES[@]}" 2>/dev/null)
 
 # Strip comments, then match. Handles // line comments, /* */ block comments,
 # and /// or * doc-comment continuation lines.
-leaks=$(
+stripped=$(
   while IFS= read -r f; do
     awk -v file="$f" '
       { line = $0 }
@@ -53,7 +74,14 @@ leaks=$(
       line ~ /^[[:space:]]*$/ { next }
       { print file ":" FNR ":" line }
     ' "$f"
-  done <<< "$files" | grep -iE "$BANNED"
+  done <<< "$files"
+)
+
+leaks=$(
+  {
+    grep -iE "$BANNED" <<< "$stripped"
+    grep -E "$BANNED_HEIR" <<< "$stripped"
+  } | sort -u
 )
 
 if [ -n "$leaks" ]; then
