@@ -9,10 +9,12 @@ You define financial intent — *if I stop checking in for a year, split my XRP
 between my wife and daughter* — and it enforces itself. No lawyer, no company
 holding your funds, no smart contract to write.
 
-> **Status:** in active development for the Flare hackathon. Contracts and tests
-> are working; the builder UI and confidential runtime are in progress. See
-> [What's real today](#whats-real-today) — we are specific about what does and
-> does not work yet.
+> **Status:** in active development for the Flare hackathon. The engine, the
+> compiler, the Go TEE extension and the full browser flow are built and tested;
+> the FDC trigger is not, and no policy has yet been driven end to end against
+> live Coston2. See [What's real today](#whats-real-today) — we are specific
+> about what does and does not work yet, including the parts that are written
+> but unproven.
 
 ---
 
@@ -50,9 +52,43 @@ Three protocols, each load-bearing rather than decorative:
 apps/web           Next.js — policy builder, deployment manager, monitor
 apps/extension     Go — the Flare Compute Extension (evaluates policies in the TEE)
 apps/orchestrator  TypeScript — non-confidential work: FDC pipeline, instruction sending
-packages/policy    Shared policy IR: schema, compiler, commitment
+packages/policy    Shared policy IR: schema, compiler, commitment, ECIES
 packages/contracts Solidity — the policy engine
 ```
+
+The path a policy takes, and where the plaintext is allowed to exist:
+
+```mermaid
+flowchart TD
+    A["Builder canvas<br/><i>apps/web</i>"] --> B["Compiler<br/><i>packages/policy</i>"]
+    B --> C["publicArgs<br/>commitment, trigger, asset"]
+    B --> D["privateConfig<br/>recipients and shares"]
+
+    C --> E["PolicyFactory.deploy<br/><i>on-chain, in the clear</i>"]
+    D --> F["ECIES seal to the<br/>enclave's public key"]
+    F --> G["sendStorePolicy<br/><i>on-chain, opaque bytes</i>"]
+
+    E --> H["ConfidentialPolicy<br/>holds only the commitment"]
+    G --> I["TEE extension<br/><i>apps/extension, Go</i>"]
+
+    J["Trigger fires<br/>ITrigger.check"] --> K["arm()<br/><i>permissionless</i>"]
+    K --> L["EVALUATE instruction"]
+    L --> I
+    I --> M["Signed distribution<br/>EIP-712, enclave key"]
+    M --> N["execute()"]
+    H --> N
+    N --> O["Recipients paid"]
+
+    style D fill:#f5f1fe,stroke:#6134c4
+    style F fill:#f5f1fe,stroke:#6134c4
+    style I fill:#f5f1fe,stroke:#6134c4
+```
+
+The shaded path is the only place the recipient list exists in plaintext: the
+user's browser, and inside the enclave. It is sealed before it leaves the
+browser and submitted to the chain directly, so no server of ours ever holds it
+— which is why the orchestrator can run on ordinary hosting without weakening
+the claim.
 
 ### The security model
 
@@ -85,17 +121,39 @@ registry entry and nothing else.
 
 ## What's real today
 
-We would rather be precise than impressive:
+We would rather be precise than impressive. "Built" below means tested; where
+something is written but has not been run against the live network, it says so.
 
-- ✅ **Policy engine contracts** — deploy, fund, arm, execute, cancel. 16 tests
-  passing, including the attestation and commitment negative cases.
-- ✅ **Genericity guard** in CI.
-- 🚧 **Policy IR + compiler** — in progress.
-- 🚧 **Compute Extension** — in progress.
-- 🚧 **Builder UI** — in progress.
-- 📋 **FDC proof-of-life trigger** — interface in place (`ITrigger`), FDC
-  implementation planned. The current `ManualHeartbeatTrigger` is an on-chain
-  check-in, not an attested XRPL observation.
+- ✅ **Policy engine contracts** — deploy, fund, arm, execute, cancel. 34 tests,
+  including both attestation negative cases, the commitment negative cases, and
+  one where an attested machine itself tries to redirect the funds.
+- ✅ **Attestor gate, fork-tested** against the live `FlareTeeManager` on Coston2,
+  not only against a mock. That test found a real bug on its first run: the
+  deployed manager reverts for an unregistered address rather than returning a
+  status, so `SignerNotAttested` could never have fired in production. The gate
+  now fails closed.
+- ✅ **Policy IR + compiler** — 41 tests. Both templates compile through one code
+  path with no branch on template name, and a policy compiles against a second
+  asset with no change outside `assets.ts`.
+- ✅ **Cross-language commitment** — computed in TypeScript, checked in Solidity,
+  re-derived in Go, with all three asserted against one shared fixture.
+- ✅ **Go TEE extension** — custom `POLICY` op type, `STORE` and `EVALUATE`
+  handlers, ECIES decrypt, EIP-712 signing.
+- ✅ **Builder, Deployment Manager, Monitor** — the full browser flow: compile,
+  seal, deploy, configure the trigger, hand off to the enclave, fund, check in,
+  and the demo control.
+- ⚠️ **Not yet run against live Coston2.** The browser deploy flow and
+  `pnpm demo` are written and typecheck, but no policy has been driven end to
+  end on the live network. That run is also what will confirm the hand-written
+  ABIs match the deployed bytecode.
+- ⚠️ **The enclave hand-off is unproven.** `sendStorePolicy` is wired from the
+  browser, but it needs a registered extension to reach a machine.
+- 📋 **FDC proof-of-life trigger** — not implemented. `ITrigger` is in place and
+  the verifier endpoints are pinned in `apps/orchestrator/src/fdc.ts`, but
+  `FdcNonexistenceTrigger` does not exist yet. The current
+  `ManualHeartbeatTrigger` is an on-chain check-in, not an attested XRPL
+  observation. This was the planned overflow item and it is the one that
+  slipped.
 
 ### Honest scope notes
 
@@ -117,23 +175,51 @@ We would rather be precise than impressive:
 
 ## Running it
 
-**Contracts** (Node 20+, [Foundry](https://getfoundry.sh)):
+Requires Node 20+, pnpm, [Foundry](https://getfoundry.sh), and Go 1.22+ for the
+extension.
 
 ```bash
-cd packages/contracts
-forge install OpenZeppelin/openzeppelin-contracts --no-git
-forge install foundry-rs/forge-std --no-git
-forge test
+git clone --recurse-submodules <this repo>
+pnpm install
 ```
 
-Dependencies are vendored by Foundry but not tracked, so the history shows only
-our work.
+The `--recurse-submodules` matters: `forge-std` and `openzeppelin-contracts` are
+pinned submodules. If you already cloned without it, `git submodule update
+--init --recursive`.
 
-**Genericity guard:**
+**Everything that runs offline** — this is what CI runs, and it needs no keys,
+no funds and no network beyond a package install:
 
 ```bash
-./scripts/lint-genericity.sh
+pnpm test                                    # policy, orchestrator, contracts
+./scripts/lint-genericity.sh                 # the engine may not learn what an inheritance is
+pnpm -r typecheck
+cd packages/contracts && forge test          # 34 tests, incl. the Coston2 fork test
+cd apps/extension/go && go test ./...
 ```
+
+The fork test skips itself if the Coston2 RPC is unreachable, so a working tree
+without network access still goes green.
+
+**The app:**
+
+```bash
+cp apps/web/.env.example apps/web/.env.local   # optional; sensible defaults are baked in
+pnpm --filter @flare-studio/web dev            # http://localhost:3000/studio
+```
+
+**The end-to-end run** — the real regression test. This one costs gas and needs
+a live enclave:
+
+```bash
+pnpm demo
+```
+
+It compiles a policy, seals it, deploys, funds it with real FXRP, hands the
+sealed half to the enclave, checks in, misses the next deadline, arms, has the
+enclave sign, executes, and then asserts that each recipient received exactly
+the share fixed at deploy time and that no dust was stranded. The script prints
+what it needs if the environment is incomplete.
 
 ---
 
