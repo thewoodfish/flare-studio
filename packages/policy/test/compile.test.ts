@@ -179,6 +179,46 @@ describe('genericity', () => {
     }
   })
 
+  /**
+   * The asset-swap drill, as a test rather than a claim.
+   *
+   * The README says adding FBTC the day it goes live is one entry in assets.ts
+   * and no other change. That is easy to assert and easy to be wrong about, so
+   * here it is exercised: a policy compiles against a second asset through the
+   * same compiler, producing the same shape, with nothing asset-specific
+   * anywhere in the path.
+   *
+   * Note what is *not* needed to make this pass -- no contract change, no new
+   * trigger, no compiler branch, no schema field. If a third asset ever needs
+   * one of those, the genericity claim has stopped being true and this test is
+   * where it should start failing.
+   */
+  it('compiles against a second asset with no other change', () => {
+    const inXrp = compile(policy({ asset: 'FXRP' }), SALT)
+    const inBtc = compile(policy({ asset: 'FBTC' }), SALT)
+
+    expect(inBtc.publicArgs.assetSymbol).toBe('FBTC')
+    expect(inBtc.publicArgs.commitment).toMatch(/^0x[0-9a-f]{64}$/)
+
+    // The commitment covers the distribution, which did not change -- so swapping
+    // the asset must not move it. If it did, something asset-specific had leaked
+    // into the confidential half.
+    expect(inBtc.publicArgs.commitment).toBe(inXrp.publicArgs.commitment)
+    expect(inBtc.privateConfig).toEqual(inXrp.privateConfig)
+  })
+
+  /**
+   * The decimals difference is real -- FXRP has 6, FBTC has 8 -- and the engine
+   * must not care. Shares are proportions; the token's own arithmetic is the
+   * token's business.
+   */
+  it('resolves the same proportions regardless of the asset decimals', () => {
+    const { privateConfig } = compile(policy({ asset: 'FBTC' }), SALT)
+    const distributions = resolveDistributions(privateConfig, 100_000_000n)
+
+    expect(distributions.map((d) => d.amount)).toEqual([60_000_000n, 40_000_000n])
+  })
+
   it('gives the two templates different triggers, same everything else', () => {
     const args = { recipients: [{ address: alice, shareBps: 10_000 }] }
     const a = compile(getTemplate('xrp-inheritance').build(args), SALT)

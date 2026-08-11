@@ -35,7 +35,23 @@ contract TeeAttestorGate {
     /// @dev Staleness handling is intentionally Flare's problem, not ours: if a
     ///      machine is deregistered or falls out of production, this goes false on
     ///      the next call with no action required here.
+    ///
+    ///      The try/catch is not defensive boilerplate. The live manager on Coston2
+    ///      *reverts* with a typed error for an address it has never seen, rather
+    ///      than returning 0 -- verified in TeeAttestorGateFork.t.sol. Without this,
+    ///      an execute signed by an unregistered key would revert with an opaque
+    ///      `0xceb05b68` from a Flare contract instead of our own SignerNotAttested,
+    ///      and the unit tests asserting that error would be describing behaviour
+    ///      that never occurs in production.
+    ///
+    ///      Failing closed is the only safe direction here: every failure mode of
+    ///      the call -- unregistered, wrong address, manager paused -- becomes "not
+    ///      attested", which blocks execution rather than permitting it.
     function isAttested(address teeId) external view returns (bool) {
-        return teeManager.getTeeMachineStatus(teeId) == STATUS_PRODUCTION;
+        try teeManager.getTeeMachineStatus(teeId) returns (uint8 status) {
+            return status == STATUS_PRODUCTION;
+        } catch {
+            return false;
+        }
     }
 }
