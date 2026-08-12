@@ -32,18 +32,37 @@ phrase somewhere a lawyer can read it means handing someone your money.
    Trusted Execution Environment. Only a *fingerprint* — a hash — goes on-chain:
    enough to prove later that nobody swapped in a different recipient, not enough
    for anyone to read who they are.
-3. **You check in by sending a tiny payment.** That is your proof of life. If you
-   stop, Flare's Data Connector can *prove* you stopped, and the policy fires.
+3. **You check in to show you are still here.** If you stop for longer than the
+   interval you chose, the policy fires on its own.
 
 ## Why Flare
 
-Three protocols, each load-bearing rather than decorative:
-
 | | |
 |---|---|
-| **FAssets** | Holds real XRP inside a smart contract as FXRP — a live FAsset on Coston2, not a mock token. |
-| **FDC** | `ReferencedPaymentNonexistence` proves an expected payment *did not arrive* by a deadline. Proving an absence is normally impossible for a smart contract; this is what makes the trigger real rather than simulated. |
-| **FCC** | The policy is decrypted and evaluated inside a TEE registered with Flare's `FlareTeeManager`, validated by data-provider consensus. The contract accepts results only from an attested machine. |
+| **FAssets** ✅ | Holds real XRP inside a smart contract as FXRP — a live FAsset on Coston2, not a mock token. The demo moves real FXRP. |
+| **FCC** ✅ | The policy is decrypted and evaluated inside a TEE registered with Flare's `FlareTeeManager`, validated by data-provider consensus. `execute()` accepts a distribution only from a machine the registry reports as `PRODUCTION` — which is why the payout in the run below went through. |
+| **FDC** 📋 | *Not integrated.* `ReferencedPaymentNonexistence` proves an expected payment did not arrive by a deadline, which would turn proof-of-life from a self-reported timer into an attested observation of an XRPL wallet. The `ITrigger` seam it plugs into is in place and the verifier endpoints are pinned, but the trigger contract does not exist. See [what this costs us](#what-fdc-would-change). |
+
+Two of those three are load-bearing today and the third is honestly marked. We
+would rather be checkable than impressive.
+
+### What FDC would change
+
+Today `ManualHeartbeatTrigger` is an on-chain check-in: the owner calls a
+function to say they are still here. That is a real dead-man's switch and it is
+what the demo runs on, but the owner is *asserting* liveness rather than the
+protocol *observing* it.
+
+`FdcNonexistenceTrigger` would replace the assertion with evidence — the owner
+sends a small XRPL payment carrying the policy's own reference, and FDC attests
+that no such payment arrived before the deadline. The owner proves presence; the
+protocol proves absence.
+
+It is a new `ITrigger` implementation and nothing else: no change to
+`ConfidentialPolicy`, no schema change, no change to the compiler. That is the
+same seam a second trigger already went through — `TimestampTrigger` cost about
+fifty lines and one test file — which is the argument that this is a known
+quantity rather than a hope.
 
 ## Architecture
 
@@ -176,6 +195,53 @@ something is written but has not been run against the live network, it says so.
 - **`simulateInactivity()`** exists so the demo is deterministic — you cannot
   fast-forward a testnet, and a twelve-month timer does not demo. It is inert
   unless `demoMode` was set at deploy, and the UI labels it as a demo control.
+
+---
+
+## Built during the program
+
+Everything below is new work unless the row says otherwise. The one thing that is
+not ours is called out explicitly, because `apps/extension` is a fork of Flare's
+`fce-` scaffold and the raw diff would otherwise flatter us by about 20,000 lines.
+
+| | Lines | What |
+|---|---|---|
+| `packages/contracts/src` | 590 | `ConfidentialPolicy`, `PolicyFactory`, `TeeAttestorGate`, `ITrigger`/`ICondition`, `ManualHeartbeatTrigger`, `TimestampTrigger` |
+| `packages/contracts/test` | 672 | 34 tests, including a fork test against the live `FlareTeeManager` |
+| `packages/policy/src` | 950 | Policy IR + zod schema, compiler, commitment, ECIES to geth's profile, asset registry, two templates |
+| `packages/policy/test` | 629 | 54 tests, including the cross-language commitment vectors and the enclave wire format |
+| `apps/web` | 5,040 | Builder canvas, inspector, review step, Deployment Manager, Monitor, wallet, deploy flow |
+| `apps/orchestrator` | 1,049 | Instruction sending, evaluate/execute round trip, `pnpm demo`, `pnpm handoff-check` |
+| `scripts` | 457 | Genericity guard, `pnpm preflight`, `pnpm sync-web-env` |
+| Extension — **ours** | ~1,100 | `policy.go` (commitment + EIP-712 in Go), the `STORE`/`EVALUATE` handlers in `extension.go`, `types.go`, `InstructionSender.sol`, and 608 lines of Go tests |
+| Extension — **scaffold** | ~20,000 | Flare's `fce-` example: Docker compose, tee-node/proxy wiring, deploy tooling, language templates. Forked, not written. |
+
+Three things worth singling out, because they are the parts that were not
+obvious:
+
+- **The commitment exists three times** — TypeScript computes it, Solidity checks
+  it, Go re-derives it inside the enclave. All three are asserted against one
+  committed fixture, so a divergence fails a test rather than a demo.
+- **ECIES had to be written twice** to geth's exact profile — AES-128-CTR, a
+  concatenation KDF, and an HMAC key that is hashed a second time. `eciesjs`
+  defaults to AES-256-GCM and produces ciphertext the enclave cannot open.
+- **The signature path** wraps an EIP-712 digest in the EIP-191 envelope, because
+  the TEE node signs via `accounts.TextHash` and offers no way out. Recovering
+  the bare digest — the obvious reading — fails for every signature a real
+  machine can produce.
+
+### What the live run proves
+
+The integration is not asserted anywhere in this document that it is not also
+demonstrated. `pnpm demo` was run against Coston2 and the transactions are
+public:
+
+| | |
+|---|---|
+| Policy | [`0x3c9d71…b815`](https://coston2-explorer.flare.network/address/0x3c9d71Cd1D500C22eD34dcE94687Cb1ef585b815) |
+| Execute | [`0x23969d…f15a`](https://coston2-explorer.flare.network/tx/0x23969dd293a5add553e202fff28f5db9608ea79b70ef1485b23322838503f15a) |
+| TEE machine | `0x7f7244155579108b63b6476ffbbbfa8d61a10ef5`, status `2` (PRODUCTION) |
+| Extension id | `0x10286` |
 
 ---
 
