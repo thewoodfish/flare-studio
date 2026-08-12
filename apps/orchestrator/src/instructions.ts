@@ -161,11 +161,19 @@ export async function pollActionResult(
 }
 
 /**
- * Decodes the enclave's payload, which arrives base64-encoded inside the result.
+ * Decodes the enclave's payload.
+ *
+ * The result arrives as 0x-prefixed hex, not base64. That was worth learning the
+ * hard way: base64 decoding hex bytes yields plausible-looking binary, so the
+ * failure surfaces as `JSON.parse` choking on a replacement character rather
+ * than as anything that names the real problem. Base64 is still accepted, since
+ * an older proxy may send it and tolerating both costs one branch.
  *
  * A non-1 status is surfaced with the enclave's own log line, because that text
  * is usually the only diagnostic available -- the extension deliberately reports
- * failures without echoing any of the material that caused them.
+ * failures without echoing any of the material that caused them. "policy has no
+ * shares" arriving that way is what identified a schema mismatch that no local
+ * test could see.
  */
 export function decodeActionData<T>(response: ActionResponse): T {
   const { result } = response
@@ -173,9 +181,20 @@ export function decodeActionData<T>(response: ActionResponse): T {
   if (result.status !== 1) {
     throw new Error(`enclave returned status ${result.status}: ${result.log}`)
   }
-  if (!result.data) {
+  if (!result.data || result.data === '0x') {
     throw new Error('enclave returned a successful result with no data')
   }
 
-  return JSON.parse(Buffer.from(result.data, 'base64').toString('utf8')) as T
+  const json = /^0x[0-9a-fA-F]*$/.test(result.data)
+    ? Buffer.from(result.data.slice(2), 'hex').toString('utf8')
+    : Buffer.from(result.data, 'base64').toString('utf8')
+
+  try {
+    return JSON.parse(json) as T
+  } catch {
+    throw new Error(
+      `enclave payload was not JSON after decoding (${json.slice(0, 60)}…) -- ` +
+        'check whether the proxy changed its encoding',
+    )
+  }
 }

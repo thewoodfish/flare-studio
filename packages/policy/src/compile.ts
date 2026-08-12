@@ -30,11 +30,35 @@ export type PrivateConfig = {
   recipients: Array<{ address: Address; shareBps: number; label?: string }>
 }
 
+/**
+ * The payload the enclave actually receives, and the only schema it accepts.
+ *
+ * Deliberately not `privateConfig`. The Go extension unmarshals into
+ * `types.PrivateConfig{Shares, Salt}` and recomputes the commitment from exactly
+ * those two fields; it has no use for a policy name or a recipient label, and
+ * every byte it does not need is a byte of confidential data with no reason to
+ * leave the browser.
+ *
+ * This split exists because they were once the same thing and silently diverged.
+ * `compile()` emitted `{version, name, recipients}` with no salt at all, the
+ * enclave rejected it with "policy has no shares", and nothing caught it --
+ * because the cross-language ECIES vectors were hand-written in the correct
+ * shape rather than generated from the compiler. The vectors proved the crypto
+ * and never checked the contract.
+ */
+export type EnclaveConfig = {
+  salt: Hex
+  shares: Array<{ recipient: Address; shareBps: number }>
+}
+
 export type CompiledPolicy = {
   ir: PolicyIR
   publicArgs: PublicArgs
+  /** The rich half, for the owner's own browser: names, labels, ordering. */
   privateConfig: PrivateConfig
-  /** Canonical JSON of privateConfig -- exactly what gets encrypted. */
+  /** What the enclave is given, and all it is given. */
+  enclaveConfig: EnclaveConfig
+  /** Canonical JSON of enclaveConfig -- exactly the bytes that get encrypted. */
   plaintext: string
 }
 
@@ -88,6 +112,16 @@ export function compile(input: unknown, salt: Hex): CompiledPolicy {
   // same commitment -- see resolveDistributions.
   const commitment = computeCommitment(shareCommitmentSet(privateConfig), salt)
 
+  // Same recipients, same order, so the commitment the enclave recomputes from
+  // this is byte-identical to the one fixed on-chain above.
+  const enclaveConfig: EnclaveConfig = {
+    salt,
+    shares: privateConfig.recipients.map((r) => ({
+      recipient: r.address,
+      shareBps: r.shareBps,
+    })),
+  }
+
   return {
     ir,
     publicArgs: {
@@ -97,7 +131,8 @@ export function compile(input: unknown, salt: Hex): CompiledPolicy {
       conditions: ir.conditions,
     },
     privateConfig,
-    plaintext: canonicalize(privateConfig),
+    enclaveConfig,
+    plaintext: canonicalize(enclaveConfig),
   }
 }
 

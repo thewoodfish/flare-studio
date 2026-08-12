@@ -229,16 +229,38 @@ export const policyInstructionSenderAbi = [
 /**
  * Emitted by the TEE extension registry, not by our contract -- so the
  * instruction id exists only in the logs, never as a return value.
+ *
+ * Transcribed from go-flare-common's generated bindings and confirmed against a
+ * live Coston2 receipt. Every field matters: they determine the signature, and
+ * therefore topic0. A wrong ABI here does not error -- decodeEventLog throws,
+ * the scan treats it as somebody else's event, and a successful transaction
+ * looks like it emitted nothing.
  */
 export const teeInstructionsSentAbi = [
   {
     type: 'event',
     name: 'TeeInstructionsSent',
     inputs: [
-      { name: 'instructionId', type: 'bytes32', indexed: true },
       { name: 'extensionId', type: 'uint256', indexed: true },
+      { name: 'instructionId', type: 'bytes32', indexed: true },
+      { name: 'rewardEpochId', type: 'uint32', indexed: true },
+      {
+        name: 'teeMachines',
+        type: 'tuple[]',
+        indexed: false,
+        components: [
+          { name: 'teeId', type: 'address' },
+          { name: 'teeProxyId', type: 'address' },
+          { name: 'url', type: 'string' },
+        ],
+      },
       { name: 'opType', type: 'bytes32', indexed: false },
       { name: 'opCommand', type: 'bytes32', indexed: false },
+      { name: 'message', type: 'bytes', indexed: false },
+      { name: 'cosigners', type: 'address[]', indexed: false },
+      { name: 'cosignersThreshold', type: 'uint64', indexed: false },
+      { name: 'claimBackAddress', type: 'address', indexed: false },
+      { name: 'fee', type: 'uint256', indexed: false },
     ],
   },
 ] as const

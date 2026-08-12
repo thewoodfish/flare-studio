@@ -39,16 +39,44 @@ export const policyInstructionSenderAbi = [
 /**
  * Emitted by the TEE extension registry, not by our contract -- which is why the
  * instruction id has to be read from the receipt logs rather than a return value.
+ *
+ * Transcribed from the generated bindings in go-flare-common
+ * (pkg/contracts/tee/instructions), and confirmed against a live Coston2 receipt:
+ * topic0 0xf770e69a…, topic1 the extension id, topic2 the instruction id, topic3
+ * the reward epoch.
+ *
+ * The earlier hand-written version had two indexed fields in the wrong order and
+ * omitted seven more. Nothing complained: a mismatched ABI makes decodeEventLog
+ * throw per log, the scan swallows it as "not our event", and the result is
+ * "no TeeInstructionsSent in the receipt" for a transaction that plainly emitted
+ * one. Do not trim this back down -- the unused fields are what make the
+ * signature, and therefore topic0, correct.
  */
 export const teeInstructionsSentAbi = [
   {
     type: 'event',
     name: 'TeeInstructionsSent',
     inputs: [
-      { name: 'instructionId', type: 'bytes32', indexed: true },
       { name: 'extensionId', type: 'uint256', indexed: true },
+      { name: 'instructionId', type: 'bytes32', indexed: true },
+      { name: 'rewardEpochId', type: 'uint32', indexed: true },
+      {
+        name: 'teeMachines',
+        type: 'tuple[]',
+        indexed: false,
+        components: [
+          { name: 'teeId', type: 'address' },
+          { name: 'teeProxyId', type: 'address' },
+          { name: 'url', type: 'string' },
+        ],
+      },
       { name: 'opType', type: 'bytes32', indexed: false },
       { name: 'opCommand', type: 'bytes32', indexed: false },
+      { name: 'message', type: 'bytes', indexed: false },
+      { name: 'cosigners', type: 'address[]', indexed: false },
+      { name: 'cosignersThreshold', type: 'uint64', indexed: false },
+      { name: 'claimBackAddress', type: 'address', indexed: false },
+      { name: 'fee', type: 'uint256', indexed: false },
     ],
   },
 ] as const

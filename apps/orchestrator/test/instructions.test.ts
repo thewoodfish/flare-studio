@@ -43,6 +43,31 @@ describe('decodeActionData', () => {
   })
 })
 
+  /**
+   * The live proxy returns 0x-hex. Base64-decoding hex produces plausible binary,
+   * so the original assumption failed as a JSON parse error on a replacement
+   * character rather than as anything naming the encoding.
+   */
+  it('decodes the 0x-hex a live proxy actually returns', () => {
+    const payload = '{"policy":"0xabc","stored":true,"shareCount":2}'
+    const hex = `0x${Buffer.from(payload, 'utf8').toString('hex')}`
+    expect(decodeActionData({ result: { status: 1, log: 'ok', data: hex, version: '0.1.0' } }))
+      .toEqual({ policy: '0xabc', stored: true, shareCount: 2 })
+  })
+
+  it('still accepts base64, for an older proxy', () => {
+    const payload = '{"stored":true}'
+    const b64 = Buffer.from(payload, 'utf8').toString('base64')
+    expect(decodeActionData({ result: { status: 1, log: 'ok', data: b64, version: '0.1.0' } }))
+      .toEqual({ stored: true })
+  })
+
+  it('treats an empty 0x as no data', () => {
+    expect(() =>
+      decodeActionData({ result: { status: 1, log: 'ok', data: '0x', version: '0.1.0' } }),
+    ).toThrow(/no data/)
+  })
+
 describe('pollActionResult', () => {
   afterEach(() => {
     vi.unstubAllGlobals()

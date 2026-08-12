@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { compile, resolveDistributions, PolicyCompileError } from '../src/compile.js'
+import { computeCommitment } from '../src/commitment.js'
 import { TEMPLATES, getTemplate } from '../src/templates/index.js'
 
 const SALT = `0x${'ab'.repeat(32)}` as const
@@ -73,6 +74,81 @@ describe('the public/private split', () => {
       SALT,
     )
     expect(original.publicArgs.commitment).not.toBe(altered.publicArgs.commitment)
+  })
+})
+
+/**
+ * The contract with the Go enclave, asserted against the compiler's real output.
+ *
+ * This suite exists because its absence cost a live debugging session. The
+ * cross-language ECIES vectors were hand-written in the shape the enclave wants,
+ * so they proved the crypto round-trips and never once checked that `compile()`
+ * produced that shape. It did not: the plaintext was `{version, name,
+ * recipients}` with no salt, and the enclave answered "policy has no shares"
+ * only after a policy had been deployed, configured and paid for on Coston2.
+ *
+ * The rule these tests encode: the bytes that get encrypted are a wire format
+ * shared with another language, so they are asserted here, not described.
+ */
+describe('the enclave payload', () => {
+  it('is exactly the schema the Go extension unmarshals', () => {
+    const { plaintext } = compile(policy(), SALT)
+    const parsed = JSON.parse(plaintext)
+
+    // types.PrivateConfig{Shares []Share, Salt common.Hash} -- nothing else.
+    expect(Object.keys(parsed).sort()).toEqual(['salt', 'shares'])
+    expect(parsed.salt).toBe(SALT)
+    for (const share of parsed.shares) {
+      expect(Object.keys(share).sort()).toEqual(['recipient', 'shareBps'])
+      expect(share.recipient).toMatch(/^0x[0-9a-fA-F]{40}$/)
+      expect(typeof share.shareBps).toBe('number')
+    }
+  })
+
+  /** `recipients`/`address` is the browser's vocabulary and must not reach the wire. */
+  it('does not use the browser-side field names', () => {
+    const { plaintext } = compile(policy(), SALT)
+    expect(plaintext).not.toContain('recipients')
+    expect(plaintext).not.toContain('"address"')
+  })
+
+  /** The enclave validates this before storing; failing it there is far worse. */
+  it('carries shares that sum to 10000 bps, in policy order', () => {
+    const { plaintext } = compile(policy(), SALT)
+    const { shares } = JSON.parse(plaintext)
+
+    expect(shares.reduce((t: number, s: { shareBps: number }) => t + s.shareBps, 0)).toBe(10_000)
+    expect(shares.map((s: { recipient: string }) => s.recipient.toLowerCase())).toEqual([
+      alice.toLowerCase(),
+      bob.toLowerCase(),
+    ])
+  })
+
+  /**
+   * The salt has to travel with the shares. The enclave recomputes the
+   * commitment from the payload alone -- it has no chain access to look one up.
+   */
+  it('includes the salt, without which the enclave cannot rebuild the commitment', () => {
+    const { plaintext, publicArgs } = compile(policy(), SALT)
+    const { shares, salt } = JSON.parse(plaintext)
+
+    expect(salt).toBe(SALT)
+    expect(
+      computeCommitment(
+        shares.map((s: { recipient: string; shareBps: number }) => ({
+          recipient: s.recipient,
+          amount: BigInt(s.shareBps),
+        })),
+        salt,
+      ),
+    ).toBe(publicArgs.commitment)
+  })
+
+  /** Labels and policy names are confidential and the enclave has no use for them. */
+  it('withholds metadata the enclave does not need', () => {
+    const { plaintext } = compile(policy(), SALT)
+    expect(plaintext).not.toContain('Alice')
+    expect(plaintext).not.toContain('Test policy')
   })
 })
 
