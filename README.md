@@ -9,12 +9,11 @@ You define financial intent — *if I stop checking in for a year, split my XRP
 between my wife and daughter* — and it enforces itself. No lawyer, no company
 holding your funds, no smart contract to write.
 
-> **Status:** in active development for the Flare hackathon. The engine, the
-> compiler, the Go TEE extension and the full browser flow are built and tested;
-> the FDC trigger is not, and no policy has yet been driven end to end against
-> live Coston2. See [What's real today](#whats-real-today) — we are specific
-> about what does and does not work yet, including the parts that are written
-> but unproven.
+> **Status:** the full lifecycle runs end to end on live Coston2 — a real policy,
+> real FXRP, a real TEE at `PRODUCTION`, and recipients paid the exact split they
+> were promised. The FDC proof-of-life trigger is the one planned feature that
+> did not land. See [What's real today](#whats-real-today) — we are specific
+> about what does and does not work.
 
 ---
 
@@ -132,7 +131,7 @@ something is written but has not been run against the live network, it says so.
   deployed manager reverts for an unregistered address rather than returning a
   status, so `SignerNotAttested` could never have fired in production. The gate
   now fails closed.
-- ✅ **Policy IR + compiler** — 41 tests. Both templates compile through one code
+- ✅ **Policy IR + compiler** — 54 tests. Both templates compile through one code
   path with no branch on template name, and a policy compiles against a second
   asset with no change outside `assets.ts`.
 - ✅ **Cross-language commitment** — computed in TypeScript, checked in Solidity,
@@ -142,12 +141,19 @@ something is written but has not been run against the live network, it says so.
 - ✅ **Builder, Deployment Manager, Monitor** — the full browser flow: compile,
   seal, deploy, configure the trigger, hand off to the enclave, fund, check in,
   and the demo control.
-- ⚠️ **Not yet run against live Coston2.** The browser deploy flow and
-  `pnpm demo` are written and typecheck, but no policy has been driven end to
-  end on the live network. That run is also what will confirm the hand-written
-  ABIs match the deployed bytecode.
-- ⚠️ **The enclave hand-off is unproven.** `sendStorePolicy` is wired from the
-  browser, but it needs a registered extension to reach a machine.
+- ✅ **Proven end to end on live Coston2.** `pnpm demo` compiles a policy, seals
+  it, deploys it, funds it with real FXRP, hands the sealed half to the enclave,
+  checks in, misses the next deadline, arms, has the enclave evaluate and sign,
+  and executes — then asserts the recipients received exactly the split fixed at
+  deploy time, that no dust was stranded, and that the policy can never fire
+  again. Last run: recipients paid 0.6001 and 0.3999 FXRP against a 60.01/39.99
+  split, [execute tx](https://coston2-explorer.flare.network/tx/0x23969dd293a5add553e202fff28f5db9608ea79b70ef1485b23322838503f15a).
+- ✅ **The enclave hand-off works.** A registered machine at `PRODUCTION` opens
+  the sealed policy and answers `{"stored":true,"shareCount":2}` — a count, never
+  a recipient. `pnpm handoff-check` is that path on its own, and needs no FXRP.
+- ✅ **The attestation gate is load-bearing, not decorative.** `execute()`
+  succeeded only because the recovered EIP-712 signer is a machine Flare's
+  registry reports as `PRODUCTION`. That is the Bounty 2 claim, demonstrated.
 - 📋 **FDC proof-of-life trigger** — not implemented. `ITrigger` is in place and
   the verifier endpoints are pinned in `apps/orchestrator/src/fdc.ts`, but
   `FdcNonexistenceTrigger` does not exist yet. The current

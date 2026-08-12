@@ -60,8 +60,29 @@ export async function evaluatePolicy(
   )
 
   const response = await pollActionResult(extProxyUrl, instructionId, options)
+  const evaluation = decodeActionData<EvaluationResult>(response)
 
-  return decodeActionData<EvaluationResult>(response)
+  // Go's encoding/json renders []byte as base64, so the enclave's `signature`
+  // arrives base64 while `salt` and every address arrive as hex -- common.Hash
+  // and common.Address have their own MarshalText, []byte does not. Handing the
+  // base64 straight to viem produces "cannot unmarshal invalid hex string",
+  // several layers from anything that names the cause.
+  return { ...evaluation, signature: asHexBytes(evaluation.signature) }
+}
+
+/**
+ * Normalises a byte field that may arrive as hex or as Go's base64.
+ *
+ * Tolerating both is deliberate: the encoding is decided by whichever Go type
+ * the enclave happens to use for a field, which is not a detail this side should
+ * have to track per field.
+ */
+function asHexBytes(value: string): Hex {
+  if (/^0x[0-9a-fA-F]*$/.test(value)) return value as Hex
+
+  const bytes = Buffer.from(value, 'base64')
+  if (bytes.length === 0) throw new Error(`could not decode signature: ${value.slice(0, 24)}…`)
+  return `0x${bytes.toString('hex')}`
 }
 
 /**

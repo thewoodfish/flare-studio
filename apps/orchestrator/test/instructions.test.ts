@@ -68,6 +68,22 @@ describe('decodeActionData', () => {
     ).toThrow(/no data/)
   })
 
+describe('the enclave signature encoding', () => {
+  /**
+   * Go's encoding/json renders []byte as base64. common.Hash and common.Address
+   * have their own MarshalText and come back as hex, so within one response the
+   * salt is hex and the signature is not. Passing the base64 to viem fails as
+   * "cannot unmarshal invalid hex string", several layers from the cause.
+   */
+  it('is base64 for []byte fields, unlike the hex salt beside it', () => {
+    const sig = Buffer.from('cafebabe', 'hex')
+    const asGoWouldSend = sig.toString('base64')
+
+    expect(asGoWouldSend).not.toMatch(/^0x/)
+    expect(`0x${Buffer.from(asGoWouldSend, 'base64').toString('hex')}`).toBe('0xcafebabe')
+  })
+})
+
 describe('pollActionResult', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
