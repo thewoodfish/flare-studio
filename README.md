@@ -201,12 +201,27 @@ cd apps/extension/go && go test ./...
 The fork test skips itself if the Coston2 RPC is unreachable, so a working tree
 without network access still goes green.
 
+**Is this machine ready?**
+
+```bash
+pnpm preflight
+```
+
+Checks the toolchain, the enclave stack, the deployer's funding and the deployed
+contracts — including that each recorded address actually has code on Coston2 —
+and prints the specific command to fix whatever is missing. Run it before
+anything that costs gas. It never prints a key.
+
 **The app:**
 
 ```bash
-cp apps/web/.env.example apps/web/.env.local   # optional; sensible defaults are baked in
+cp apps/web/.env.example apps/web/.env.local   # then fill in the deployed addresses
 pnpm --filter @flare-studio/web dev            # http://localhost:3000/studio
 ```
+
+The builder and the review step work without any of that. Deploying needs a
+deployed engine to point at, and the app will tell you so rather than sending a
+transaction to an empty address.
 
 **The end-to-end run** — the real regression test. This one costs gas and needs
 a live enclave:

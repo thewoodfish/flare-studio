@@ -6,7 +6,7 @@ import { formatUnits, parseUnits, type Address } from 'viem'
 import { getAsset, type CompiledPolicy } from '@flare-studio/policy'
 import { Address as AddressChip, Badge } from './primitives'
 import { Button } from './shell'
-import { ADDRESSES, explorerTx } from '@/lib/chain'
+import { ADDRESSES, contractsConfigured, explorerTx } from '@/lib/chain'
 import { erc20Abi } from '@/lib/abi'
 import { publicClient, useWallet } from '@/lib/wallet'
 import { deployPolicy, type DeployStep } from '@/lib/deploy'
@@ -142,7 +142,24 @@ export function DeployDialog({
           </div>
         </header>
 
-        {!wallet.account || !wallet.onCoston2 ? (
+        {!contractsConfigured() ? (
+          <div style={{ padding: 'var(--space-5)' }}>
+            <Badge tone="warning">Not configured</Badge>
+            <p
+              style={{
+                fontSize: 13,
+                color: 'var(--text-secondary)',
+                lineHeight: 1.6,
+                marginTop: 'var(--space-3)',
+              }}
+            >
+              This build has no policy engine deployed to point at, so there is nothing to
+              deploy into. Run the deploy script against Coston2 and put the resulting
+              addresses in <code>apps/web/.env.local</code> — <code>pnpm preflight</code> will
+              tell you exactly which are missing.
+            </p>
+          </div>
+        ) : !wallet.account || !wallet.onCoston2 ? (
           <div style={{ padding: 'var(--space-5)' }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               Connect a wallet on Coston2 to deploy. Your confidential inputs are encrypted in
@@ -269,7 +286,12 @@ export function DeployDialog({
                 variant="primary"
                 onClick={() => void run()}
                 disabled={
-                  running || !wallet.account || !wallet.onCoston2 || amountInvalid || overBalance
+                  running ||
+                  !contractsConfigured() ||
+                  !wallet.account ||
+                  !wallet.onCoston2 ||
+                  amountInvalid ||
+                  overBalance
                 }
               >
                 {running ? 'Deploying…' : failure ? 'Try again' : 'Deploy'}

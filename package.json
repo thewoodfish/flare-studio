@@ -5,6 +5,7 @@
   "scripts": {
     "lint:genericity": "./scripts/lint-genericity.sh",
     "test": "pnpm -r test",
-    "demo": "pnpm --filter @flare-studio/orchestrator demo"
+    "demo": "pnpm --filter @flare-studio/orchestrator demo",
+    "preflight": "./scripts/doctor.sh"
   }
 }

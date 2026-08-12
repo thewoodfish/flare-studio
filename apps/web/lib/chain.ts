@@ -3,14 +3,24 @@ import { defineChain, type Address, type Hex } from 'viem'
 /**
  * Coston2, and where the app finds its contracts.
  *
- * The addresses below are written by `forge script script/Deploy.s.sol` into
- * `packages/contracts/deployments/coston2.json`. They are duplicated here as
- * defaults rather than imported because that file is generated and gitignored --
- * a fresh clone would fail to build. Every one is overridable by environment so
- * a redeploy is a `.env.local` edit, not a code change.
+ * Our own contracts have NO fallback address, deliberately. An earlier version
+ * of this file carried the addresses from
+ * `packages/contracts/deployments/coston2.json` as defaults -- and that file had
+ * been written by a `forge script` run without `--broadcast`, so it recorded
+ * addresses that were never deployed. `cast code` on all three returned `0x`.
+ *
+ * Baking those in made the app look configured while pointing at empty
+ * addresses, which fails as an unexplained revert at deploy time rather than as
+ * a clear message up front. So an unset address is now zero, `contractsConfigured`
+ * reports it, and the UI refuses to start a deploy it knows cannot work.
+ *
+ * FXRP keeps its default because it is Flare's, not ours, and is verified live
+ * on Coston2 -- it is the one address here that is not ours to deploy.
  *
  * These are public testnet contract addresses. Nothing here is a secret.
  */
+
+const UNSET = '0x0000000000000000000000000000000000000000' as const
 
 export const coston2 = defineChain({
   id: 114,
@@ -30,27 +40,10 @@ function envAddress(value: string | undefined, fallback: Address): Address {
 }
 
 export const ADDRESSES = {
-  policyFactory: envAddress(
-    process.env.NEXT_PUBLIC_POLICY_FACTORY,
-    '0xDC4DF7ea48D6c4B7839ff55C8D0E91F2B885326d',
-  ),
-  teeAttestorGate: envAddress(
-    process.env.NEXT_PUBLIC_TEE_ATTESTOR_GATE,
-    '0x67C5D7DA5c66954579C19A55B59273D7a97594A6',
-  ),
-  manualHeartbeatTrigger: envAddress(
-    process.env.NEXT_PUBLIC_MANUAL_HEARTBEAT_TRIGGER,
-    '0x395F139c4C8B9e1807D3Da259020BabA5E331D45',
-  ),
-  /**
-   * Deployed alongside the others by the same script. Left as the zero address
-   * when a deployment predates it, which `triggerDeployment` reports as a plain
-   * "not deployed on this network yet" rather than a failed transaction.
-   */
-  timestampTrigger: envAddress(
-    process.env.NEXT_PUBLIC_TIMESTAMP_TRIGGER,
-    '0x0000000000000000000000000000000000000000',
-  ),
+  policyFactory: envAddress(process.env.NEXT_PUBLIC_POLICY_FACTORY, UNSET),
+  teeAttestorGate: envAddress(process.env.NEXT_PUBLIC_TEE_ATTESTOR_GATE, UNSET),
+  manualHeartbeatTrigger: envAddress(process.env.NEXT_PUBLIC_MANUAL_HEARTBEAT_TRIGGER, UNSET),
+  timestampTrigger: envAddress(process.env.NEXT_PUBLIC_TIMESTAMP_TRIGGER, UNSET),
   fxrp: envAddress(
     process.env.NEXT_PUBLIC_FXRP,
     '0x0b6A3645c240605887a5532109323A3E12273dc7',
@@ -67,13 +60,32 @@ export const ADDRESSES = {
    */
   policyInstructionSender: envAddress(
     process.env.NEXT_PUBLIC_POLICY_INSTRUCTION_SENDER,
-    '0x0000000000000000000000000000000000000000',
+    UNSET,
   ),
 } as const
 
+export function isSet(address: Address): boolean {
+  return !/^0x0+$/.test(address)
+}
+
 /** True when the enclave hand-off can actually be attempted. */
 export function enclaveHandoffConfigured(): boolean {
-  return !/^0x0+$/.test(ADDRESSES.policyInstructionSender)
+  return isSet(ADDRESSES.policyInstructionSender)
+}
+
+/**
+ * True when the policy engine is deployed and pointed at.
+ *
+ * Checked before the deploy dialog will do anything, so a build with no
+ * deployment says so in a sentence instead of sending a transaction to an
+ * address with no code and surfacing whatever the RPC makes of that.
+ */
+export function contractsConfigured(): boolean {
+  return (
+    isSet(ADDRESSES.policyFactory) &&
+    isSet(ADDRESSES.teeAttestorGate) &&
+    isSet(ADDRESSES.manualHeartbeatTrigger)
+  )
 }
 
 /**
