@@ -6,6 +6,7 @@
     "lint:genericity": "./scripts/lint-genericity.sh",
     "test": "pnpm -r test",
     "demo": "pnpm --filter @flare-studio/orchestrator demo",
-    "preflight": "./scripts/doctor.sh"
+    "preflight": "./scripts/doctor.sh",
+    "sync-web-env": "./scripts/sync-web-env.sh"
   }
 }
