@@ -1,6 +1,11 @@
 'use client'
 
-import { eciesEncrypt, type CompiledPolicy, type PolicyIR } from '@flare-studio/policy'
+import {
+  eciesEncrypt,
+  teePublicKeyFromInfo,
+  type CompiledPolicy,
+  type PolicyIR,
+} from '@flare-studio/policy'
 import { decodeEventLog, type Address, type Hex } from 'viem'
 import { ADDRESSES, coston2, enclaveHandoffConfigured } from './chain'
 import { storePolicyOnChain } from './store-policy'
@@ -360,8 +365,10 @@ async function fetchTeePublicKey(): Promise<Hex | null> {
   })
   if (!response.ok) throw new Error(`proxy returned ${response.status}`)
 
-  const info = (await response.json()) as { machineData?: { publicKey?: Hex } }
-  return info.machineData?.publicKey ?? null
+  // The key arrives as {x, y} coordinates, not a hex string. Parsing it here by
+  // hand is how this silently returned an object that eciesEncrypt rejected,
+  // turning "encrypt the confidential half" into a skipped step.
+  return teePublicKeyFromInfo(await response.json())
 }
 
 function message(e: unknown): string {

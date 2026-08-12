@@ -111,11 +111,18 @@ else
 
   if [ "$code" = "200" ]; then
     pass "extension proxy" "$host"
-    pubkey=$(printf '%s' "$info" | jq -r '.machineData.publicKey // empty' 2>/dev/null)
-    if [ -n "$pubkey" ]; then
-      pass "machine public key" "${pubkey:0:20}…"
+    # The key is {x, y} coordinates, not a hex string. Checking for a truthy
+    # `.machineData.publicKey` passes on the object form too, which is exactly
+    # how the browser flow reported a healthy proxy while silently failing to
+    # encrypt anything. Assert the coordinates, and their length.
+    keyx=$(printf '%s' "$info" | jq -r '.machineData.publicKey.x // empty' 2>/dev/null)
+    keyy=$(printf '%s' "$info" | jq -r '.machineData.publicKey.y // empty' 2>/dev/null)
+    if [ ${#keyx} -eq 66 ] && [ ${#keyy} -eq 66 ]; then
+      pass "machine public key" "${keyx:0:18}…"
+    elif [ -n "$keyx" ]; then
+      fail "machine public key" "coordinates are the wrong length"
     else
-      fail "machine public key" "/info has no machineData.publicKey"
+      fail "machine public key" "/info has no machineData.publicKey.x"
       fix "Without it the browser cannot seal a policy to the enclave."
     fi
   elif [ -z "$code" ] || [ "$code" = "000" ]; then

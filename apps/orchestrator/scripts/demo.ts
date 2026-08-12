@@ -27,7 +27,13 @@
 
 import { createPublicClient, createWalletClient, http, defineChain, formatUnits, parseUnits, decodeEventLog, type Address, type Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { compile, eciesEncrypt, getAsset, resolveDistributions } from '@flare-studio/policy'
+import {
+  compile,
+  eciesEncrypt,
+  getAsset,
+  resolveDistributions,
+  teePublicKeyFromInfo,
+} from '@flare-studio/policy'
 import { evaluatePolicy, executePolicy } from '../src/policy.js'
 import { sendStorePolicy } from '../src/instructions.js'
 import { confidentialPolicyAbi } from '../src/abi.js'
@@ -178,13 +184,13 @@ async function main(): Promise<void> {
 
   heading('Seal the private half to the enclave')
 
-  const info = (await (await fetch(`${extProxyUrl.replace(/\/$/, '')}/info`)).json()) as {
-    machineData?: { publicKey?: Hex }
-  }
-  const teeKey = info.machineData?.publicKey
-  assert(teeKey !== undefined, 'the extension proxy reports a machine public key')
+  // The key arrives as {x, y} coordinates, not a hex string -- see tee-info.ts.
+  // Reading it by hand is how the browser flow silently stopped encrypting.
+  const info = await (await fetch(`${extProxyUrl.replace(/\/$/, '')}/info`)).json()
+  const teeKey = teePublicKeyFromInfo(info)
+  assert(/^0x04[0-9a-f]{128}$/.test(teeKey), 'the proxy reports a usable machine public key')
 
-  const ciphertext = eciesEncrypt(teeKey!, compiled.plaintext)
+  const ciphertext = eciesEncrypt(teeKey, compiled.plaintext)
   detail('ciphertext', `${(ciphertext.length - 2) / 2} bytes`)
 
   // --- 3. deploy -----------------------------------------------------------
