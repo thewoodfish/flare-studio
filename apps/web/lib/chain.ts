@@ -44,6 +44,7 @@ export const ADDRESSES = {
   teeAttestorGate: envAddress(process.env.NEXT_PUBLIC_TEE_ATTESTOR_GATE, UNSET),
   manualHeartbeatTrigger: envAddress(process.env.NEXT_PUBLIC_MANUAL_HEARTBEAT_TRIGGER, UNSET),
   timestampTrigger: envAddress(process.env.NEXT_PUBLIC_TIMESTAMP_TRIGGER, UNSET),
+  fdcNonexistenceTrigger: envAddress(process.env.NEXT_PUBLIC_FDC_NONEXISTENCE_TRIGGER, UNSET),
   fxrp: envAddress(
     process.env.NEXT_PUBLIC_FXRP,
     '0x0b6A3645c240605887a5532109323A3E12273dc7',

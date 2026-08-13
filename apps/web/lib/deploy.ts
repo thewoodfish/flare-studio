@@ -2,16 +2,18 @@
 
 import {
   eciesEncrypt,
+  policyReference,
   teePublicKeyFromInfo,
   type CompiledPolicy,
   type PolicyIR,
 } from '@flare-studio/policy'
-import { decodeEventLog, type Address, type Hex } from 'viem'
+import { decodeEventLog, keccak256, toHex, type Address, type Hex } from 'viem'
 import { ADDRESSES, coston2, enclaveHandoffConfigured } from './chain'
 import { storePolicyOnChain } from './store-policy'
 import {
   confidentialPolicyAbi,
   erc20Abi,
+  fdcNonexistenceTriggerAbi,
   manualHeartbeatTriggerAbi,
   policyFactoryAbi,
   timestampTriggerAbi,
@@ -69,13 +71,7 @@ export function triggerAddress(trigger: PolicyIR['trigger']): Address {
     case 'timestamp':
       return requireDeployed(ADDRESSES.timestampTrigger, 'scheduled-date trigger')
     case 'chainProofOfLife':
-      // Deliberate, not an oversight: this is the FDC-backed trigger and its
-      // contract is the last piece of the build. The manual check-in trigger
-      // does the same job with a weaker guarantee until it lands.
-      throw new DeployError(
-        'Payment-based proof of life is not deployable yet. Use the check-in trigger for now.',
-        'configure',
-      )
+      return requireDeployed(ADDRESSES.fdcNonexistenceTrigger, 'payment proof-of-life trigger')
   }
 }
 
@@ -98,9 +94,42 @@ export function configureRequest(
         functionName: 'configure',
         args: [policy, BigInt(trigger.executeAfter)],
       }
-    case 'chainProofOfLife':
-      throw new DeployError('Payment-based proof of life is not deployable yet.', 'configure')
+    case 'chainProofOfLife': {
+      // The reference is derived from the policy's own address, which is why
+      // this call could not be built before the policy existed -- and why a
+      // proof about one policy is worthless against another.
+      const reference = policyReference(policy)
+
+      return {
+        abi: fdcNonexistenceTriggerAbi,
+        functionName: 'configure',
+        args: [
+          policy,
+          {
+            owner,
+            sourceId: stringToBytes32(trigger.sourceId),
+            // FDC hashes the destination as the UTF-8 bytes of the address
+            // string, so the chain's own address format passes through
+            // untouched and this stays chain-agnostic.
+            destinationAddressHash: keccak256(toHex(trigger.destinationAddress)),
+            paymentReference: reference,
+            minimumAmount: BigInt(trigger.minimumAmount),
+            interval: BigInt(trigger.intervalSeconds),
+            // The clock starts when the policy is deployed, not when the user
+            // opened the builder.
+            start: BigInt(Math.floor(Date.now() / 1000)),
+          },
+        ],
+      }
+    }
   }
+}
+
+/** FDC source ids are left-aligned bytes32, e.g. `testXRP`. */
+function stringToBytes32(value: string): Hex {
+  const hex = Buffer.from(value, 'utf8').toString('hex')
+  if (hex.length > 64) throw new DeployError(`source id "${value}" exceeds 32 bytes`, 'configure')
+  return `0x${hex.padEnd(64, '0')}`
 }
 
 function requireDeployed(address: Address, what: string): Address {

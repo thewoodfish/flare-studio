@@ -1,0 +1,25 @@
+{
+  "tag": "flare-studio.policy-reference.v1",
+  "cases": [
+    {
+      "policy": "0x0000000000000000000000000000000000000000",
+      "reference": "0xb3a0ece878fc19592914ddb040c355f889175d14d97f0a2ed744fb05bf1a2d85"
+    },
+    {
+      "policy": "0x0000000000000000000000000000000000000001",
+      "reference": "0xbde19907a87ce2de99efc334af19cf92f8f8e90c55eba239718761c30ca17228"
+    },
+    {
+      "policy": "0x3c9d71Cd1D500C22eD34dcE94687Cb1ef585b815",
+      "reference": "0xb3b41a6789275f3eccfae054f763ec63e536b3089757990b4af6ddf9b600511d"
+    },
+    {
+      "policy": "0x121B80EBe51Ea8A8f352fA5Cfe70c080c9E2F854",
+      "reference": "0x6ca31638627194c4e9a223b67279d76564dcdeecbb1d8346d9e6a87f99a0d232"
+    },
+    {
+      "policy": "0xffffffffffffffffffffffffffffffffffffffff",
+      "reference": "0xd72089622a0c522de3d51d320dfe72ad8aa2eff19aa748fdd46e460c929c332c"
+    }
+  ]
+}

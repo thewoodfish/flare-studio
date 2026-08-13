@@ -36,6 +36,7 @@ factory=$(get policyFactory)
 gate=$(get teeAttestorGate)
 heartbeat=$(get manualHeartbeatTrigger)
 timestamp=$(get timestampTrigger)
+nonexistence=$(get fdcNonexistenceTrigger)
 fxrp=$(get fxrp)
 block=$(get deployBlock)
 
@@ -61,6 +62,7 @@ NEXT_PUBLIC_POLICY_FACTORY=$factory
 NEXT_PUBLIC_TEE_ATTESTOR_GATE=$gate
 NEXT_PUBLIC_MANUAL_HEARTBEAT_TRIGGER=$heartbeat
 NEXT_PUBLIC_TIMESTAMP_TRIGGER=$timestamp
+NEXT_PUBLIC_FDC_NONEXISTENCE_TRIGGER=$nonexistence
 NEXT_PUBLIC_FXRP=$fxrp
 NEXT_PUBLIC_FACTORY_DEPLOY_BLOCK=${block:-0}
 NEXT_PUBLIC_POLICY_INSTRUCTION_SENDER=$sender
@@ -81,6 +83,7 @@ report policyFactory "$factory"
 report teeAttestorGate "$gate"
 report manualHeartbeatTrigger "$heartbeat"
 report timestampTrigger "$timestamp"
+report fdcNonexistenceTrigger "$nonexistence"
 report fxrp "$fxrp"
 report instructionSender "$sender"
 report extProxyUrl "$proxy"

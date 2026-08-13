@@ -175,6 +175,52 @@ export const timestampTriggerAbi = [
   },
 ] as const
 
+/**
+ * The FDC-backed proof-of-life trigger.
+ *
+ * `configure` takes a struct rather than positional args because it has seven
+ * fields and a mis-ordered pair of bytes32s would configure a policy that can
+ * never fire -- and would look fine doing it.
+ */
+export const fdcNonexistenceTriggerAbi = [
+  {
+    type: 'function',
+    name: 'configure',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'policy', type: 'address' },
+      {
+        name: 'config',
+        type: 'tuple',
+        components: [
+          { name: 'owner', type: 'address' },
+          { name: 'sourceId', type: 'bytes32' },
+          { name: 'destinationAddressHash', type: 'bytes32' },
+          { name: 'paymentReference', type: 'bytes32' },
+          { name: 'minimumAmount', type: 'uint256' },
+          { name: 'interval', type: 'uint64' },
+          { name: 'start', type: 'uint64' },
+        ],
+      },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'currentDeadline',
+    stateMutability: 'view',
+    inputs: [{ name: 'policy', type: 'address' }],
+    outputs: [{ name: '', type: 'uint64' }],
+  },
+  {
+    type: 'function',
+    name: 'policyReference',
+    stateMutability: 'pure',
+    inputs: [{ name: 'policy', type: 'address' }],
+    outputs: [{ name: '', type: 'bytes32' }],
+  },
+] as const
+
 export const erc20Abi = [
   {
     type: 'function',

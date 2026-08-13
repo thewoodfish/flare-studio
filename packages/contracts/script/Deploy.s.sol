@@ -8,6 +8,7 @@ import {PolicyFactory} from "../src/PolicyFactory.sol";
 import {TeeAttestorGate} from "../src/TeeAttestorGate.sol";
 import {ManualHeartbeatTrigger} from "../src/triggers/ManualHeartbeatTrigger.sol";
 import {TimestampTrigger} from "../src/triggers/TimestampTrigger.sol";
+import {FdcNonexistenceTrigger} from "../src/triggers/FdcNonexistenceTrigger.sol";
 import {IFlareContractRegistry, IAssetManager} from "../src/interfaces/IFlareContractRegistry.sol";
 
 /// @notice Deploys the policy engine to Coston2.
@@ -37,6 +38,13 @@ contract Deploy is Script {
         ManualHeartbeatTrigger heartbeat = new ManualHeartbeatTrigger();
         TimestampTrigger timestamp = new TimestampTrigger();
 
+        // Resolved from the registry, never a literal: two FDC verifiers are
+        // deployed on Coston2 and only this one implements IFdcVerification.
+        address fdcVerification =
+            IFlareContractRegistry(REGISTRY).getContractAddressByName("FdcVerification");
+        require(fdcVerification != address(0), "registry has no FdcVerification");
+        FdcNonexistenceTrigger nonexistence = new FdcNonexistenceTrigger(fdcVerification);
+
         vm.stopBroadcast();
 
         console.log("");
@@ -46,10 +54,19 @@ contract Deploy is Script {
         console.log("TeeAttestorGate       ", address(gate));
         console.log("ManualHeartbeatTrigger", address(heartbeat));
         console.log("TimestampTrigger      ", address(timestamp));
+        console.log("FdcNonexistenceTrigger", address(nonexistence));
+        console.log("FdcVerification       ", fdcVerification);
         console.log("FXRP                  ", fxrp);
         console.log("FlareTeeManager       ", teeManager);
 
-        _writeAddresses(address(factory), address(gate), address(heartbeat), address(timestamp), fxrp);
+        _writeAddresses(
+            address(factory),
+            address(gate),
+            address(heartbeat),
+            address(timestamp),
+            address(nonexistence),
+            fxrp
+        );
     }
 
     /// @dev Registry -> AssetManager -> fAsset(). Three hops, zero hardcoded
@@ -67,6 +84,7 @@ contract Deploy is Script {
         address gate,
         address heartbeatTrigger,
         address timestampTrigger,
+        address fdcNonexistenceTrigger,
         address fxrp
     ) internal {
         string memory json = string.concat(
@@ -77,6 +95,7 @@ contract Deploy is Script {
             '  "teeAttestorGate": "', vm.toString(gate), '",\n',
             '  "manualHeartbeatTrigger": "', vm.toString(heartbeatTrigger), '",\n',
             '  "timestampTrigger": "', vm.toString(timestampTrigger), '",\n',
+            '  "fdcNonexistenceTrigger": "', vm.toString(fdcNonexistenceTrigger), '",\n',
             '  "fxrp": "', vm.toString(fxrp), '"\n',
             "}\n"
         );

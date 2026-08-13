@@ -11,8 +11,9 @@ holding your funds, no smart contract to write.
 
 > **Status:** the full lifecycle runs end to end on live Coston2 — a real policy,
 > real FXRP, a real TEE at `PRODUCTION`, and recipients paid the exact split they
-> were promised. The FDC proof-of-life trigger is the one planned feature that
-> did not land. See [What's real today](#whats-real-today) — we are specific
+> were promised. All three Flare protocols are integrated; the FDC trigger is
+> deployed and unit- and fork-tested but has not yet fired from a real
+> attestation. See [What's real today](#whats-real-today) — we are specific
 > about what does and does not work.
 
 ---
@@ -41,28 +42,33 @@ phrase somewhere a lawyer can read it means handing someone your money.
 |---|---|
 | **FAssets** ✅ | Holds real XRP inside a smart contract as FXRP — a live FAsset on Coston2, not a mock token. The demo moves real FXRP. |
 | **FCC** ✅ | The policy is decrypted and evaluated inside a TEE registered with Flare's `FlareTeeManager`, validated by data-provider consensus. `execute()` accepts a distribution only from a machine the registry reports as `PRODUCTION` — which is why the payout in the run below went through. |
-| **FDC** 📋 | *Not integrated.* `ReferencedPaymentNonexistence` proves an expected payment did not arrive by a deadline, which would turn proof-of-life from a self-reported timer into an attested observation of an XRPL wallet. The `ITrigger` seam it plugs into is in place and the verifier endpoints are pinned, but the trigger contract does not exist. See [what this costs us](#what-fdc-would-change). |
+| **FDC** ✅ | `ReferencedPaymentNonexistence` proves an expected payment *did not arrive* by a deadline. Proving an absence is normally impossible for a contract — it can only see what did happen — and this is what turns proof-of-life from a self-reported timer into an attested observation. `FdcNonexistenceTrigger` is deployed and consumes proofs through Flare's `FdcVerification`. |
 
-Two of those three are load-bearing today and the third is honestly marked. We
-would rather be checkable than impressive.
+All three are load-bearing, and each one is doing work the others cannot.
 
-### What FDC would change
+### The two proof-of-life triggers
 
-Today `ManualHeartbeatTrigger` is an on-chain check-in: the owner calls a
-function to say they are still here. That is a real dead-man's switch and it is
-what the demo runs on, but the owner is *asserting* liveness rather than the
-protocol *observing* it.
+`ManualHeartbeatTrigger` is an on-chain check-in: the owner calls a function to
+say they are still here. It is a real dead-man's switch and it is what the
+end-to-end demo runs on, because it is deterministic and needs no XRPL wallet.
+But the owner is *asserting* liveness rather than the protocol *observing* it.
 
-`FdcNonexistenceTrigger` would replace the assertion with evidence — the owner
-sends a small XRPL payment carrying the policy's own reference, and FDC attests
-that no such payment arrived before the deadline. The owner proves presence; the
-protocol proves absence.
+`FdcNonexistenceTrigger` replaces the assertion with evidence. The owner sends a
+small XRPL payment carrying the policy's own reference; FDC attests that no such
+payment arrived before the deadline. **The owner proves presence; the protocol
+proves absence.**
 
-It is a new `ITrigger` implementation and nothing else: no change to
-`ConfidentialPolicy`, no schema change, no change to the compiler. That is the
-same seam a second trigger already went through — `TimestampTrigger` cost about
-fifty lines and one test file — which is the argument that this is a known
-quantity rather than a hope.
+Building the second one required a new `ITrigger` and nothing else — no change
+to `ConfidentialPolicy`, no schema change, no compiler branch. That is the third
+trigger through the same seam, which is the genericity claim being tested rather
+than asserted.
+
+Seven things are checked before a proof may fire a policy, and each one is a way
+a genuine proof could otherwise fire the wrong policy. The subtlest: a request
+may restrict *which senders count*, so an attacker could pick a source-address
+set the owner never pays from and prove a truthful irrelevance. We require that
+filter to be off. See `FdcNonexistenceTrigger.check` — every check has a named
+error and a test.
 
 ## Architecture
 
@@ -173,12 +179,16 @@ something is written but has not been run against the live network, it says so.
 - ✅ **The attestation gate is load-bearing, not decorative.** `execute()`
   succeeded only because the recovered EIP-712 signer is a machine Flare's
   registry reports as `PRODUCTION`. That is the Bounty 2 claim, demonstrated.
-- 📋 **FDC proof-of-life trigger** — not implemented. `ITrigger` is in place and
-  the verifier endpoints are pinned in `apps/orchestrator/src/fdc.ts`, but
-  `FdcNonexistenceTrigger` does not exist yet. The current
-  `ManualHeartbeatTrigger` is an on-chain check-in, not an attested XRPL
-  observation. This was the planned overflow item and it is the one that
-  slipped.
+- ✅ **FDC proof-of-life trigger** — `FdcNonexistenceTrigger` is deployed at
+  [`0xB13cD1…e902`](https://coston2-explorer.flare.network/address/0xB13cD1E8899A1F36eAEE11E0eC2B4DCaCeeCe902),
+  wired to Flare's `FdcVerification` resolved from the registry. 17 unit tests,
+  one per rejection path, plus a fork test confirming our interface matches the
+  deployed verifier and that a fabricated proof is refused.
+- ⚠️ **The FDC trigger has not fired end to end.** The contract verifies proofs
+  and the interface is fork-tested, but no XRPL payment has been made and no
+  real attestation has been requested from the Data Availability layer, so the
+  full pipeline is unproven. The demo runs on the check-in trigger. This is the
+  honest remaining gap.
 
 ### Honest scope notes
 

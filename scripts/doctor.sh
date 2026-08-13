@@ -202,7 +202,7 @@ else
     fix "Until then, Scheduled Distribution cannot be deployed at all."
   fi
 
-  for key in policyFactory teeAttestorGate manualHeartbeatTrigger fxrp; do
+  for key in policyFactory teeAttestorGate manualHeartbeatTrigger fdcNonexistenceTrigger fxrp; do
     addr=$(jq -r ".$key // empty" "$DEPLOYMENTS" 2>/dev/null)
     if [ -z "$addr" ]; then
       fail "  $key" "not in the deployments file"
