@@ -5,16 +5,35 @@
 A visual platform for building, deploying, and managing confidential,
 self-executing asset policies on Flare.
 
-You define financial intent — *if I stop checking in for a year, split my XRP
-between my wife and daughter* — and it enforces itself. No lawyer, no company
-holding your funds, no smart contract to write.
+A **policy** is a rule your assets follow on their own: what is governed, what
+has to happen before anything moves, who receives what, and which of that stays
+private. You compose one on a canvas. It compiles to real contracts and runs
+without you — including when you cannot act, which is usually the moment it
+matters.
 
----
+### What a policy is made of
+
+Every policy is the same five primitives. Nothing in the engine knows what any
+particular policy is *for*.
+
+| | | Ships today |
+|---|---|---|
+| **Asset** | What is governed | FXRP, live on Coston2. `FBTC` sits in the registry, disabled, and a test compiles a policy against it |
+| **Trigger** | What starts evaluation | Three deployed: an on-chain check-in, a fixed date, and an FDC-attested missing payment |
+| **Conditions** | What else must hold | The `ICondition` seam exists and is deliberately empty — see [what we did not build](#what-we-did-not-build) |
+| **Confidential inputs** | What nobody may read | Recipients and their shares, sealed to a TEE and never on-chain in the clear |
+| **Actions** | What happens | Proportional split to any number of recipients |
+
+Compose those differently and you get different products: inheritance, scheduled
+distributions, vesting, escrow, family trusts, treasury controls. **Two of those
+ship as templates today** — XRP Inheritance and Scheduled Distribution — and the
+rest are what the model is for, not what we are claiming to have built.
 
 ## It works, and here is the receipt
 
-The full lifecycle ran end to end on live Coston2: a real policy, real FXRP, a
-real TEE at `PRODUCTION`, and recipients paid the exact split they were promised.
+Template #1 — XRP Inheritance — ran end to end on live Coston2: a real policy,
+real FXRP, a real TEE at `PRODUCTION`, and recipients paid the exact split they
+were promised.
 
 ```
 ✓ A received 0.6001 FXRP, exactly their 60.01%
@@ -57,9 +76,11 @@ Or run the whole thing yourself — see [Running it](#running-it).
 
 ### Contents
 
-[The problem](#the-problem) · [How it works](#how-it-works) ·
+[The problem](#the-problem) · [Worked example: inheritance](#the-worked-example-xrp-inheritance) ·
 [Why Flare](#why-flare) · [Architecture](#architecture) ·
-[What's real today](#whats-real-today) · [Deployed addresses](#deployed-addresses) ·
+[Why generic is checkable](#inheritance-is-not-the-product--and-that-is-checkable) ·
+[What's real today](#whats-real-today) · [What we did not build](#what-we-did-not-build) ·
+[Deployed addresses](#deployed-addresses) · [Which bounties](#which-bounties-and-why) ·
 [Built during the program](#built-during-the-program) · [Running it](#running-it) ·
 [Roadmap](#roadmap)
 
@@ -67,21 +88,44 @@ Or run the whole thing yourself — see [Running it](#running-it).
 
 ## The problem
 
+Anything conditional you want to do with on-chain money today is a bespoke smart
+contract. Vesting, escrow, a trust, a treasury rule, a payout that happens only
+if something else does or does not occur — each one is a separate audit, a
+separate deployment, and a developer you have to trust and pay.
+
+And two things are unreasonably hard even for that developer:
+
+- **Keeping the terms private.** Putting a policy on-chain normally publishes it.
+  Who inherits, who gets paid, what the thresholds are — all of it becomes public
+  the moment the contract is deployed.
+- **Acting on an absence.** A contract can see what happened. It cannot see what
+  *failed* to happen, which is exactly what a dead-man's switch, a missed
+  milestone, or a defaulted obligation depends on.
+
+Inheritance is the sharpest instance of both, which is why it is the template we
+built first.
+
+### The worked example: XRP inheritance
+
 If you hold crypto and you die, or lose your keys, it is gone. There is no bank
 to call and no branch to visit with a death certificate. A will does not help:
 your family cannot reach the assets without your seed phrase, and writing that
 phrase somewhere a lawyer can read it means handing someone your money.
 
-## How it works
+As a policy, that is:
 
-1. **Build a policy by dragging boxes on a canvas.** Asset → trigger → who
-   receives what. You never see a contract.
-2. **The private part stays private.** Recipients and amounts are encrypted to a
+1. **Asset** — your FXRP, held by the policy contract.
+2. **Trigger** — proof of life. You check in; if you stop for longer than the
+   interval you chose, the policy becomes eligible to run.
+3. **Confidential inputs** — who receives what. Encrypted in your browser to a
    Trusted Execution Environment. Only a *fingerprint* — a hash — goes on-chain:
    enough to prove later that nobody swapped in a different recipient, not enough
    for anyone to read who they are.
-3. **You check in to show you are still here.** If you stop for longer than the
-   interval you chose, the policy fires on its own.
+4. **Action** — the balance is split by the shares you fixed, and paid out.
+
+Change the trigger to a date and the same machinery is a scheduled distribution.
+Change it to a price and it is a conditional allocation. The engine does not
+know the difference, and that is the point.
 
 ## Why Flare
 
@@ -174,19 +218,32 @@ the claim.
 Both are covered by tests, including one where the attested machine itself tries
 to redirect the funds.
 
-### Inheritance is not the product
+### Inheritance is not the product — and that is checkable
 
 It is template #1. The engine is deliberately ignorant of it: `ConfidentialPolicy`
 holds no heartbeat interval, no deadline, no price threshold, no notion of an
 estate. Trigger state lives behind `ITrigger`, condition state behind
-`ICondition`. A scheduled-distribution policy reuses the entire stack with a
-different trigger and no schema change.
+`ICondition`.
 
-This is enforced mechanically — `scripts/lint-genericity.sh` fails CI if template
-vocabulary reaches engine code. The engine's word is `recipient`.
+"Generic" is easy to assert and easy to fake, so it is tested rather than
+claimed:
 
-Assets are configuration too. Adding FBTC the day it goes live should be one
-registry entry and nothing else.
+- **Three triggers, one engine.** A check-in, a fixed date, and an FDC-attested
+  missing payment. The third cost one contract — no change to
+  `ConfidentialPolicy`, no schema change, no compiler branch.
+- **Two templates, one code path.** `compile.test.ts` runs both through the same
+  compiler and asserts they differ *only* in their trigger: same recipients, same
+  salt, byte-identical confidential half.
+- **Two assets, no code change.** A policy compiles against `FBTC` — a different
+  chain with different decimals — with no change outside `assets.ts`. Adding an
+  FAsset the day it goes live is one registry entry.
+- **A guard in CI.** `scripts/lint-genericity.sh` fails the build if template
+  vocabulary — *inherit*, *beneficiary*, *heir*, *dead-man* — reaches engine
+  code. The engine's word is `recipient`. It runs over 204 files on every push.
+
+The multi-chain story is not ours to invent either: FDC's
+`ReferencedPaymentNonexistence` supports XRP, BTC and DOGE, so the proof-of-life
+trigger takes the source chain as a parameter rather than baking one in.
 
 ---
 
