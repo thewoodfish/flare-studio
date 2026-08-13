@@ -9,12 +9,59 @@ You define financial intent — *if I stop checking in for a year, split my XRP
 between my wife and daughter* — and it enforces itself. No lawyer, no company
 holding your funds, no smart contract to write.
 
-> **Status:** the full lifecycle runs end to end on live Coston2 — a real policy,
-> real FXRP, a real TEE at `PRODUCTION`, and recipients paid the exact split they
-> were promised. All three Flare protocols are integrated; the FDC trigger is
-> deployed and unit- and fork-tested but has not yet fired from a real
-> attestation. See [What's real today](#whats-real-today) — we are specific
-> about what does and does not work.
+---
+
+## It works, and here is the receipt
+
+The full lifecycle ran end to end on live Coston2: a real policy, real FXRP, a
+real TEE at `PRODUCTION`, and recipients paid the exact split they were promised.
+
+```
+✓ A received 0.6001 FXRP, exactly their 60.01%
+✓ B received 0.3999 FXRP, exactly their 39.99%
+✓ no dust was left stranded in the policy
+✓ the policy is Executed and can never fire again
+```
+
+| | On Coston2 |
+|---|---|
+| **Execute transaction** | [`0x23969d…f15a`](https://coston2-explorer.flare.network/tx/0x23969dd293a5add553e202fff28f5db9608ea79b70ef1485b23322838503f15a) |
+| **The policy it paid out** | [`0x3c9d71…b815`](https://coston2-explorer.flare.network/address/0x3c9d71Cd1D500C22eD34dcE94687Cb1ef585b815) |
+| **TEE machine that signed it** | `0x7f7244…0ef5` — status `2`, PRODUCTION |
+| **Extension id** | `0x10286` |
+
+That transaction succeeded *because* the recovered EIP-712 signer is a machine
+Flare's own registry reports as `PRODUCTION`. Not a mock, not a mode — the gate
+is what let the money move.
+
+### Verify it yourself in 60 seconds
+
+No install, no keys — these read the public chain:
+
+```bash
+# The TEE that signed the payout is a registered PRODUCTION machine
+cast call 0x1a9C4A0f9D76c0b1D91d22E24E573a9b377618aE \
+  "getTeeMachineStatus(address)(uint8)" \
+  0x7f7244155579108b63b6476ffbbbfa8d61a10ef5 \
+  --rpc-url https://coston2-api.flare.network/ext/C/rpc
+# => 2
+
+# The policy is Executed and holds nothing back
+cast call 0x3c9d71Cd1D500C22eD34dcE94687Cb1ef585b815 "status()(uint8)" \
+  --rpc-url https://coston2-api.flare.network/ext/C/rpc   # => 2 (Executed)
+cast call 0x3c9d71Cd1D500C22eD34dcE94687Cb1ef585b815 "balance()(uint256)" \
+  --rpc-url https://coston2-api.flare.network/ext/C/rpc   # => 0
+```
+
+Or run the whole thing yourself — see [Running it](#running-it).
+
+### Contents
+
+[The problem](#the-problem) · [How it works](#how-it-works) ·
+[Why Flare](#why-flare) · [Architecture](#architecture) ·
+[What's real today](#whats-real-today) · [Deployed addresses](#deployed-addresses) ·
+[Built during the program](#built-during-the-program) · [Running it](#running-it) ·
+[Roadmap](#roadmap)
 
 ---
 
@@ -148,7 +195,7 @@ registry entry and nothing else.
 We would rather be precise than impressive. "Built" below means tested; where
 something is written but has not been run against the live network, it says so.
 
-- ✅ **Policy engine contracts** — deploy, fund, arm, execute, cancel. 34 tests,
+- ✅ **Policy engine contracts** — deploy, fund, arm, execute, cancel. 56 tests,
   including both attestation negative cases, the commitment negative cases, and
   one where an attested machine itself tries to redirect the funds.
 - ✅ **Attestor gate, fork-tested** against the live `FlareTeeManager` on Coston2,
@@ -156,7 +203,7 @@ something is written but has not been run against the live network, it says so.
   deployed manager reverts for an unregistered address rather than returning a
   status, so `SignerNotAttested` could never have fired in production. The gate
   now fails closed.
-- ✅ **Policy IR + compiler** — 54 tests. Both templates compile through one code
+- ✅ **Policy IR + compiler** — 60 tests. Both templates compile through one code
   path with no branch on template name, and a policy compiles against a second
   asset with no change outside `assets.ts`.
 - ✅ **Cross-language commitment** — computed in TypeScript, checked in Solidity,
@@ -208,6 +255,54 @@ something is written but has not been run against the live network, it says so.
 
 ---
 
+## Deployed addresses
+
+Everything below is live on Coston2 (chain id 114) and resolvable in the
+explorer. Our contracts are deployed by `forge script script/Deploy.s.sol`;
+Flare's are resolved from `FlareContractRegistry` at runtime, never hardcoded —
+Coston2 has been redeployed once already and stale literals are the most common
+way this stack breaks.
+
+| Contract | Address |
+|---|---|
+| `PolicyFactory` | [`0x121B80…F854`](https://coston2-explorer.flare.network/address/0x121B80EBe51Ea8A8f352fA5Cfe70c080c9E2F854) |
+| `TeeAttestorGate` | [`0x40Fb70…747C`](https://coston2-explorer.flare.network/address/0x40Fb70601Fa6d77137bb87ee7eD1a98D7337747C) |
+| `ManualHeartbeatTrigger` | [`0xdE3745…9C5e`](https://coston2-explorer.flare.network/address/0xdE37452BAFC3618Ae5efa41eE4F05b62F42a9C5e) |
+| `TimestampTrigger` | [`0x059569…B06c`](https://coston2-explorer.flare.network/address/0x059569623780303633f9699E77Bd69143B7bB06c) |
+| `FdcNonexistenceTrigger` | [`0xB13cD1…e902`](https://coston2-explorer.flare.network/address/0xB13cD1E8899A1F36eAEE11E0eC2B4DCaCeeCe902) |
+| `PolicyInstructionSender` | [`0xC57fD1…66c7`](https://coston2-explorer.flare.network/address/0xC57fD12f9EbA54170797Ea42745dC02983bd66c7) |
+| FXRP *(Flare's)* | [`0x0b6A36…3dc7`](https://coston2-explorer.flare.network/address/0x0b6A3645c240605887a5532109323A3E12273dc7) |
+| `FlareTeeManager` *(Flare's)* | [`0x1a9C4A…18aE`](https://coston2-explorer.flare.network/address/0x1a9C4A0f9D76c0b1D91d22E24E573a9b377618aE) |
+| `FdcVerification` *(Flare's)* | [`0x906507…B933`](https://coston2-explorer.flare.network/address/0x906507E0B64bcD494Db73bd0459d1C667e14B933) |
+
+---
+
+## Which bounties, and why
+
+Submitted to both, from one build. Each bounty has a delta on top of a shared
+core, and both deltas landed.
+
+**Interoperable Asset Products.** The policy governs FXRP — a live FAsset on
+Coston2, resolved from the registry through `AssetManagerFXRP → fAsset()`, never
+a hardcoded token. Real FXRP moved in the run above. Assets are configuration:
+`assets.ts` already carries an FBTC entry, and a test compiles a policy against
+it to prove that adding an asset is one registry entry and no code change.
+
+**Confidential Compute Apps.** The runtime is a Flare Compute Extension written
+in Go, registered with `FlareTeeManager`, and reaching `PRODUCTION`. The private
+half of a policy is ECIES-sealed in the browser, submitted on-chain as opaque
+bytes, and opened only inside the enclave. `execute()` accepts a distribution
+only from an attested machine *and* only if it hashes to the commitment fixed at
+deploy time — so even a fully compromised enclave cannot redirect a payout, only
+authorise the split the owner already chose.
+
+The second one is the harder claim, and it is why the TEE work came first:
+encryption plus a key-holding server is the superficial answer to a bounty named
+Confidential Compute. There is no server. The plaintext exists in the owner's
+browser and inside the enclave, and nowhere in between.
+
+---
+
 ## Built during the program
 
 Everything below is new work unless the row says otherwise. The one thing that is
@@ -216,15 +311,19 @@ not ours is called out explicitly, because `apps/extension` is a fork of Flare's
 
 | | Lines | What |
 |---|---|---|
-| `packages/contracts/src` | 590 | `ConfidentialPolicy`, `PolicyFactory`, `TeeAttestorGate`, `ITrigger`/`ICondition`, `ManualHeartbeatTrigger`, `TimestampTrigger` |
-| `packages/contracts/test` | 672 | 34 tests, including a fork test against the live `FlareTeeManager` |
-| `packages/policy/src` | 950 | Policy IR + zod schema, compiler, commitment, ECIES to geth's profile, asset registry, two templates |
-| `packages/policy/test` | 629 | 54 tests, including the cross-language commitment vectors and the enclave wire format |
-| `apps/web` | 5,040 | Builder canvas, inspector, review step, Deployment Manager, Monitor, wallet, deploy flow |
-| `apps/orchestrator` | 1,049 | Instruction sending, evaluate/execute round trip, `pnpm demo`, `pnpm handoff-check` |
-| `scripts` | 457 | Genericity guard, `pnpm preflight`, `pnpm sync-web-env` |
-| Extension — **ours** | ~1,100 | `policy.go` (commitment + EIP-712 in Go), the `STORE`/`EVALUATE` handlers in `extension.go`, `types.go`, `InstructionSender.sol`, and 608 lines of Go tests |
+| `packages/contracts/src` | 855 | `ConfidentialPolicy`, `PolicyFactory`, `TeeAttestorGate`, `ITrigger`/`ICondition`, and three triggers: manual check-in, timestamp, FDC nonexistence |
+| `packages/contracts/test` | 1,158 | 56 tests, including two fork tests against live Coston2 — `FlareTeeManager` and `FdcVerification` |
+| `packages/policy/src` | 998 | Policy IR + zod schema, compiler, commitment, ECIES to geth's profile, payment references, asset registry, two templates |
+| `packages/policy/test` | 689 | 60 tests, including the cross-language commitment vectors, the payment-reference vectors and the enclave wire format |
+| `apps/web` | 5,117 | Builder canvas, inspector, review step, Deployment Manager, Monitor, wallet, deploy flow |
+| `apps/orchestrator` | 1,236 | Instruction sending, evaluate/execute round trip, `pnpm demo`, `pnpm handoff-check` |
+| `scripts` | 460 | Genericity guard, `pnpm preflight`, `pnpm sync-web-env` |
+| Extension — **ours** | 1,220 | `policy.go` (commitment + EIP-712 in Go), the `STORE`/`EVALUATE` handlers in `extension.go`, `types.go`, `InstructionSender.sol`, and 608 lines of Go tests |
 | Extension — **scaffold** | ~20,000 | Flare's `fce-` example: Docker compose, tee-node/proxy wiring, deploy tooling, language templates. Forked, not written. |
+
+**127 tests across three languages**, plus 29 Go test functions in the enclave —
+all runnable offline except the two fork tests, which skip themselves without a
+network.
 
 Three things worth singling out, because they are the parts that were not
 obvious:
@@ -239,19 +338,23 @@ obvious:
   the TEE node signs via `accounts.TextHash` and offers no way out. Recovering
   the bare digest — the obvious reading — fails for every signature a real
   machine can produce.
+- **An FDC proof can be true and irrelevant.** A nonexistence request may
+  restrict *which senders count*, so an attacker can pick a source-address set
+  the owner never pays from and obtain an honest attestation that nothing
+  arrived. `FdcNonexistenceTrigger` refuses any proof with that filter set.
+  Absence only means something once you have fixed what you were looking for.
 
-### What the live run proves
+### What we did not build
 
-The integration is not asserted anywhere in this document that it is not also
-demonstrated. `pnpm demo` was run against Coston2 and the transactions are
-public:
+Worth stating plainly, because a submission that only lists wins is harder to
+trust than one that draws its own edges:
 
-| | |
-|---|---|
-| Policy | [`0x3c9d71…b815`](https://coston2-explorer.flare.network/address/0x3c9d71Cd1D500C22eD34dcE94687Cb1ef585b815) |
-| Execute | [`0x23969d…f15a`](https://coston2-explorer.flare.network/tx/0x23969dd293a5add553e202fff28f5db9608ea79b70ef1485b23322838503f15a) |
-| TEE machine | `0x7f7244155579108b63b6476ffbbbfa8d61a10ef5`, status `2` (PRODUCTION) |
-| Extension id | `0x10286` |
+- The FDC trigger has never fired from a real attestation — see
+  [What's real today](#whats-real-today).
+- `priceAbove` is an `ICondition` with no implementation. The seam is there and
+  deliberately empty; FTSO is not integrated and we do not claim it.
+- There is no mainnet deployment, no audit, and no key recovery for a lost
+  browser vault beyond the backup the app prompts you to download.
 
 ---
 
@@ -276,11 +379,11 @@ no funds and no network beyond a package install:
 pnpm test                                    # policy, orchestrator, contracts
 ./scripts/lint-genericity.sh                 # the engine may not learn what an inheritance is
 pnpm -r typecheck
-cd packages/contracts && forge test          # 34 tests, incl. the Coston2 fork test
+cd packages/contracts && forge test          # 56 tests, incl. two Coston2 fork tests
 cd apps/extension/go && go test ./...
 ```
 
-The fork test skips itself if the Coston2 RPC is unreachable, so a working tree
+The fork tests skip themselves if the Coston2 RPC is unreachable, so a working tree
 without network access still goes green.
 
 **Is this machine ready?**
@@ -322,14 +425,28 @@ what it needs if the environment is incomplete.
 
 ## Roadmap
 
-**Protocol Managed Wallets.** Today a user holds wrapped FXRP, so inheritance
-operates on a wrapped token. FCC lists PMW — programmable assembly and signing of
-transactions on external chains — as a system application. With it, a policy could
-custody **native XRP on the XRPL** and have the TEE sign the real payments to
-recipients. No minting, no wrapper: you bequeath your actual XRP.
+**Next, and small:** fire the FDC trigger from a real XRPL payment. The contract
+and its verification path are done; what remains is the request/attest/retrieve
+round trip through the Data Availability layer. That is the one gap in this
+README and it is measured in hours, not architecture.
 
-Then: more templates (family trust, escrow, vesting, treasury controls), more
-assets as FAssets go live, and published templates from third-party developers.
+**The headline: Protocol Managed Wallets.** Today a user holds wrapped FXRP, so
+inheritance operates on a wrapped token. FCC lists PMW — programmable assembly
+and signing of transactions on external chains — as a system application. With
+it, a policy could custody **native XRP on the XRPL** and have the TEE assemble
+and sign the real payments to recipients. No minting step, no wrapper: you
+bequeath your actual XRP.
+
+That is a roadmap item with a named primitive behind it rather than a wish — the
+mechanism already exists in Flare's architecture. It is also deliberately not
+claimed as built: there is no PMW developer guide yet, and the sign-extension
+documents only arbitrary secp256k1 signing. FXRP is the shipped path.
+
+**Then the platform argument.** More templates (family trust, escrow, vesting,
+treasury controls), more assets as FAssets go live, and third-party developers
+publishing templates. The architecture is already pointed this way: a third
+trigger cost one contract, a second asset costs one registry entry, and a
+mechanical guard fails CI if template vocabulary ever reaches engine code.
 
 ## License
 
