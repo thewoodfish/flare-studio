@@ -11,6 +11,8 @@ private. You compose one on a canvas. It compiles to real contracts and runs
 without you — including when you cannot act, which is usually the moment it
 matters.
 
+![The policy builder](docs/screenshots/builder.jpg)
+
 ### What a policy is made of
 
 Every policy is the same five primitives. Nothing in the engine knows what any
@@ -123,6 +125,16 @@ As a policy, that is:
    for anyone to read who they are.
 4. **Action** — the balance is split by the shares you fixed, and paid out.
 
+Who receives what is edited like any other form field — and encrypted before it
+leaves the page:
+
+![Editing confidential inputs](docs/screenshots/confidential-inputs.jpg)
+
+The review step states the policy in plain language, with no blockchain
+vocabulary anywhere in the primary flow:
+
+![The review step](docs/screenshots/review.jpg)
+
 Change the trigger to a date and the same machinery is a scheduled distribution.
 Change it to a price and it is a conditional allocation. The engine does not
 know the difference, and that is the point.
@@ -160,6 +172,16 @@ may restrict *which senders count*, so an attacker could pick a source-address
 set the owner never pays from and prove a truthful irrelevance. We require that
 filter to be off. See `FdcNonexistenceTrigger.check` — every check has a named
 error and a test.
+
+### Under the hood
+
+Every piece of Flare vocabulary lives behind one disclosure, which is also
+exactly where a reviewer will look:
+
+![The under-the-hood panel](docs/screenshots/under-the-hood.jpg)
+
+FAsset resolution path, the commitment, the salt, and the size of the sealed
+payload — the same values the contracts and the enclave use.
 
 ## Architecture
 
@@ -233,7 +255,11 @@ claimed:
   `ConfidentialPolicy`, no schema change, no compiler branch.
 - **Two templates, one code path.** `compile.test.ts` runs both through the same
   compiler and asserts they differ *only* in their trigger: same recipients, same
-  salt, byte-identical confidential half.
+  salt, byte-identical confidential half. It is visible on the canvas — this is
+  the same policy as the screenshot above, switched to template #2, with one node
+  changed and everything else untouched:
+
+  ![Scheduled Distribution, the same engine](docs/screenshots/scheduled-distribution.jpg)
 - **Two assets, no code change.** A policy compiles against `FBTC` — a different
   chain with different decimals — with no change outside `assets.ts`. Adding an
   FAsset the day it goes live is one registry entry.
