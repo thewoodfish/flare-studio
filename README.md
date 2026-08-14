@@ -1,6 +1,8 @@
-# Flare Studio
+<p align="center">
+  <img src="docs/logo.png" alt="Flare Studio" width="420">
+</p>
 
-**Your Crypto. Your Policy.**
+<p align="center"><strong>Your Crypto. Your Policy.</strong></p>
 
 A visual platform for building, deploying, and managing confidential,
 self-executing asset policies on Flare.
@@ -11,7 +13,10 @@ private. You compose one on a canvas. It compiles to real contracts and runs
 without you — including when you cannot act, which is usually the moment it
 matters.
 
-![The policy builder](docs/screenshots/builder.jpg)
+![The template gallery](docs/screenshots/gallery.jpg)
+
+*Flare Studio opens on a shelf of policy templates, grouped by what they are
+for. Inheritance is the first one, not the product.*
 
 ### What a policy is made of
 
@@ -124,6 +129,11 @@ As a policy, that is:
    enough to prove later that nobody swapped in a different recipient, not enough
    for anyone to read who they are.
 4. **Action** — the balance is split by the shares you fixed, and paid out.
+
+Choosing a template opens the canvas, which is drawn from the policy itself
+rather than from a fixed layout:
+
+![The policy builder](docs/screenshots/builder.jpg)
 
 Who receives what is edited like any other form field — and encrypted before it
 leaves the page:
@@ -259,7 +269,11 @@ claimed:
   the same policy as the screenshot above, switched to template #2, with one node
   changed and everything else untouched:
 
-  ![Scheduled Distribution, the same engine](docs/screenshots/scheduled-distribution.jpg)
+  ![Choosing a different trigger](docs/screenshots/trigger-editor.jpg)
+
+  Every trigger is selectable on any template, and the canvas redraws as you
+  change it — an inheritance policy switched to a fixed date is still the same
+  engine, the same contracts, and the same confidential half.
 - **Two assets, no code change.** A policy compiles against `FBTC` — a different
   chain with different decimals — with no change outside `assets.ts`. Adding an
   FAsset the day it goes live is one registry entry.

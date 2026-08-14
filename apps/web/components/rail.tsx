@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
@@ -17,6 +18,34 @@ export function Rail() {
 
   return (
     <>
+      {/* The mark, not the lockup. At 36px the wordmark would be illegible, and
+          a brand that cannot be read is noise -- the rail is for identity, and
+          screen titles carry the naming. Links home so it behaves the way a
+          logo in a top-left corner is expected to. */}
+      <Link
+        href="/studio"
+        aria-label="Flare Studio"
+        style={{
+          width: 36,
+          height: 36,
+          display: 'grid',
+          placeItems: 'center',
+          marginBottom: 'var(--space-2)',
+        }}
+      >
+        <Image src="/mark.png" alt="" width={24} height={24} priority />
+      </Link>
+
+      <span
+        aria-hidden="true"
+        style={{
+          width: 20,
+          height: 1,
+          background: 'var(--border)',
+          marginBottom: 'var(--space-3)',
+        }}
+      />
+
       <RailLink href="/studio" label="Templates" active={pathname.startsWith('/studio')}>
         <svg width="17" height="17" viewBox="0 0 16 16" fill="none">
           <rect x="2" y="2" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
