@@ -4,6 +4,31 @@
 
 <p align="center"><strong>Your Crypto. Your Policy.</strong></p>
 
+---
+
+## The problem
+
+Anything conditional you want to do with on-chain money today is a bespoke smart
+contract. Vesting, escrow, a trust, a treasury rule, a payout that happens only
+if something else does or does not occur — each one is a separate audit, a
+separate deployment, and a developer you have to trust and pay.
+
+And two things are unreasonably hard even for that developer:
+
+- **Keeping the terms private.** Putting a policy on-chain normally publishes it.
+  Who inherits, who gets paid, what the thresholds are — all of it becomes public
+  the moment the contract is deployed.
+- **Acting on an absence.** A contract can see what happened. It cannot see what
+  *failed* to happen, which is exactly what a dead-man's switch, a missed
+  milestone, or a defaulted obligation depends on.
+
+Inheritance is the sharpest instance of both, which is why it is the template we
+built first.
+
+---
+
+## What we built
+
 A visual platform for building, deploying, and managing confidential,
 self-executing asset policies on Flare.
 
@@ -83,7 +108,8 @@ Or run the whole thing yourself — see [Running it](#running-it).
 
 ### Contents
 
-[The problem](#the-problem) · [Worked example: inheritance](#the-worked-example-xrp-inheritance) ·
+[The problem](#the-problem) · [What we built](#what-we-built) ·
+[Worked example: inheritance](#the-worked-example-xrp-inheritance) ·
 [Why Flare](#why-flare) · [Architecture](#architecture) ·
 [Why generic is checkable](#inheritance-is-not-the-product--and-that-is-checkable) ·
 [What's real today](#whats-real-today) · [What we did not build](#what-we-did-not-build) ·
@@ -93,26 +119,7 @@ Or run the whole thing yourself — see [Running it](#running-it).
 
 ---
 
-## The problem
-
-Anything conditional you want to do with on-chain money today is a bespoke smart
-contract. Vesting, escrow, a trust, a treasury rule, a payout that happens only
-if something else does or does not occur — each one is a separate audit, a
-separate deployment, and a developer you have to trust and pay.
-
-And two things are unreasonably hard even for that developer:
-
-- **Keeping the terms private.** Putting a policy on-chain normally publishes it.
-  Who inherits, who gets paid, what the thresholds are — all of it becomes public
-  the moment the contract is deployed.
-- **Acting on an absence.** A contract can see what happened. It cannot see what
-  *failed* to happen, which is exactly what a dead-man's switch, a missed
-  milestone, or a defaulted obligation depends on.
-
-Inheritance is the sharpest instance of both, which is why it is the template we
-built first.
-
-### The worked example: XRP inheritance
+## The worked example: XRP inheritance
 
 If you hold crypto and you die, or lose your keys, it is gone. There is no bank
 to call and no branch to visit with a death certificate. A will does not help:
