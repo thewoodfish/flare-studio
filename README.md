@@ -535,28 +535,87 @@ what it needs if the environment is incomplete.
 
 ## Roadmap
 
-**Next, and small:** fire the FDC trigger from a real XRPL payment. The contract
-and its verification path are done; what remains is the request/attest/retrieve
-round trip through the Data Availability layer. That is the one gap in this
-README and it is measured in hours, not architecture.
+The end state is a **marketplace of policies**: developers author them, anyone
+deploys them in a few clicks, and the author earns when they do. Every step
+below is grounded in something that already exists in this repo — the point of
+the genericity work was to make this a sequence rather than a rewrite.
 
-**The headline: Protocol Managed Wallets.** Today a user holds wrapped FXRP, so
-inheritance operates on a wrapped token. FCC lists PMW — programmable assembly
-and signing of transactions on external chains — as a system application. With
-it, a policy could custody **native XRP on the XRPL** and have the TEE assemble
-and sign the real payments to recipients. No minting step, no wrapper: you
-bequeath your actual XRP.
+### 1 · Close the FDC loop
+
+Fire the trigger from a real XRPL payment. The contract and its verification
+path are done and fork-tested; what remains is the request/attest/retrieve round
+trip through the Data Availability layer. This is the one gap in this README and
+it is measured in hours, not architecture.
+
+### 2 · More chains, not just more tokens
+
+`ReferencedPaymentNonexistence` supports **XRP, BTC and DOGE**, which is why
+`FdcNonexistenceTrigger` takes the source chain as a parameter rather than
+baking one in. `assets.ts` already carries an FBTC entry, disabled, and a test
+compiles a policy against it — a different chain with different decimals — to
+prove that adding an asset is one registry entry and no code change.
+
+So "inheritance for Bitcoin" is not a rebuild. It is an FAsset going live, one
+entry, and a flag flipped.
+
+### 3 · The studio, and the marketplace
+
+Today a template is a 47-line file plus one line in a registry, and only a
+developer with the repo checked out can add one. Three things turn that into a
+market:
+
+- **Templates as data, not code.** They compile to a `PolicyIR` that is already
+  JSON-shaped and zod-validated. Publishing means storing that IR rather than a
+  TypeScript module — the compiler, the canvas-free form and the deploy flow all
+  consume it unchanged.
+- **A registry with authorship.** Publishing, versioning, and an author address.
+  The factory already emits `PolicyDeployed` per deployment, so attributing a
+  deploy to a template is an event field, not an indexer.
+- **A fee at deploy time.** `PolicyFactory.deploy` is the natural hook, and it
+  is one function. A share to the author, a share to the protocol.
+
+The unit of value is the *policy design* — a well-drafted family trust, an
+escrow with the right conditions, a vesting schedule that handles the edge
+cases. That is the thing worth paying a few dollars for and worth an author's
+time to get right.
+
+**The hard part is trust, and it is worth naming precisely.** A template is code
+that runs before the compiler does, and the compiler reads the recipient list
+from the template's *output* rather than from what the user typed. So a
+malicious template can add a recipient of its own. It cannot do so invisibly —
+shares must total 100%, so it has to take a visible slice from someone — but it
+can try.
+
+The defence that exists today is the review step, which compiles for real and
+renders the *compiled* split rather than the form's state. Whatever the template
+actually produced is what a user reads back in plain language before they sign.
+That was worth building for a single-template product and becomes load-bearing
+the moment templates come from strangers.
+
+What a marketplace would need on top: published source, diffable versions, and a
+review or attestation step before a template may charge. That is a product
+problem before it is a contract problem — and it is the reason this section says
+"marketplace" rather than "app store".
+
+### 4 · Protocol Managed Wallets
+
+Today a user holds wrapped FXRP, so inheritance operates on a wrapped token. FCC
+lists PMW — programmable assembly and signing of transactions on external chains
+— as a system application. With it, a policy could custody **native XRP on the
+XRPL** and have the TEE assemble and sign the real payments to recipients. No
+minting step, no wrapper: you bequeath your actual XRP.
 
 That is a roadmap item with a named primitive behind it rather than a wish — the
 mechanism already exists in Flare's architecture. It is also deliberately not
 claimed as built: there is no PMW developer guide yet, and the sign-extension
 documents only arbitrary secp256k1 signing. FXRP is the shipped path.
 
-**Then the platform argument.** More templates (family trust, escrow, vesting,
-treasury controls), more assets as FAssets go live, and third-party developers
-publishing templates. The architecture is already pointed this way: a third
-trigger cost one contract, a second asset costs one registry entry, and a
-mechanical guard fails CI if template vocabulary ever reaches engine code.
+---
+
+None of the above is built. What makes it credible is the cost of the last three
+things that *were*: a third trigger was one contract, a second asset was one
+registry entry, and a second template was one file. A platform is a claim about
+what the next thing costs, and this one has been measured three times.
 
 ## License
 
