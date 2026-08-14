@@ -155,17 +155,8 @@ export function RecipientsEditor({
         </p>
       )}
 
-      <p
-        style={{
-          fontSize: 12.5,
-          color: 'var(--text-secondary)',
-          marginTop: 'var(--space-5)',
-          lineHeight: 1.55,
-        }}
-      >
-        Only a fingerprint of this list is written on-chain — enough to prove nobody
-        substituted a different recipient, not enough to read who they are.
-      </p>
+      {/* The commitment is explained by the step's own lede, which says it more
+          fully. Repeating it here read as the same sentence twice. */}
     </div>
   )
 }

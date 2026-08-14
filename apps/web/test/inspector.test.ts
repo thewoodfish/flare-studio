@@ -34,9 +34,8 @@ const value = (panel: { rows: Array<{ label: string; value: string }> }, label: 
 describe('inspectorFor', () => {
   it('describes the whole policy when nothing is selected', () => {
     const panel = inspectorFor(null, ir())
-    expect(panel.title).toBe('Policy')
+    expect(panel.label).toBe('Policy')
     expect(value(panel, 'Actions')).toBe('1')
-    expect(panel.help).toMatch(/select a node/i)
   })
 
   it('does not offer a conditions row when there are none', () => {
@@ -108,25 +107,42 @@ describe('inspectorFor', () => {
         ],
       }),
     )
-    expect(panel.title).toBe('Condition')
+    expect(panel.label).toBe('Condition')
     expect(value(panel, 'Detail')).toContain('99')
   })
 
   /** A stale selection must not crash the sidebar. */
   it('falls back to the policy panel for an index past the end', () => {
-    expect(inspectorFor('action-7', ir()).title).toBe('Policy')
-    expect(inspectorFor('condition-3', ir()).title).toBe('Policy')
+    expect(inspectorFor('action-7', ir()).label).toBe('Policy')
+    expect(inspectorFor('condition-3', ir()).label).toBe('Policy')
   })
 
   it('falls back for a node id it has never seen', () => {
-    expect(inspectorFor('something-else', ir()).title).toBe('Policy')
-    expect(inspectorFor('action-not-a-number', ir()).title).toBe('Policy')
+    expect(inspectorFor('something-else', ir()).label).toBe('Policy')
+    expect(inspectorFor('action-not-a-number', ir()).label).toBe('Policy')
   })
 
   describe('confidential inputs', () => {
     it('mounts the recipients editor when the private values are recipients', () => {
       const panel = inspectorFor('confidential', ir())
       expect(panel.editor).toBe('recipients')
+    })
+
+    /**
+     * "Private" as a step name had people asking whether it meant conditions.
+     * The step is named for what it holds, which cannot be misread.
+     */
+    it('names the step for what it holds', () => {
+      expect(inspectorFor('confidential', ir()).label).toBe('Recipients')
+    })
+
+    /** Every step explains itself; a step with no help is a step with no answer. */
+    it('explains itself, as every step must', () => {
+      for (const id of ['asset', 'trigger', 'confidential', 'action-0', null]) {
+        const panel = inspectorFor(id, ir())
+        expect(panel.help, `${id} has no explanation`).toBeTruthy()
+        expect(panel.label, `${id} has no label`).toBeTruthy()
+      }
     })
 
     /**
@@ -137,6 +153,7 @@ describe('inspectorFor', () => {
     it('does not mount it for an action kind that is not a split transfer', () => {
       const panel = inspectorFor('confidential', ir({ actions: [{ kind: 'notifyOnly' }] }))
       expect(panel.editor).toBeUndefined()
+      expect(panel.label).toBe('Confidential')
       expect(value(panel, 'Private values')).toBe('0')
     })
   })

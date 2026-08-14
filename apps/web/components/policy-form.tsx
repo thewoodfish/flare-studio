@@ -56,7 +56,7 @@ export function PolicyForm({
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: 'var(--space-8) var(--space-6)' }}>
       <div style={{ maxWidth: 660, margin: '0 auto' }}>
-        <StepStrip steps={steps} activeId={current.id} onStep={onStep} />
+        <StepStrip steps={steps} ir={ir} activeId={current.id} onStep={onStep} />
 
         <section
           style={{
@@ -79,6 +79,16 @@ export function PolicyForm({
           >
             <span style={{ display: 'inline-flex', color: meta.colour }}>{meta.icon}</span>
             <h2 style={{ fontSize: 15 }}>{panel.title}</h2>
+            <span
+              style={{
+                marginLeft: 'auto',
+                fontSize: 12,
+                color: 'var(--text-tertiary)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Step {index + 1} of {steps.length}
+            </span>
           </header>
 
           <div style={{ padding: 'var(--space-5)' }}>
@@ -177,10 +187,12 @@ export function PolicyForm({
  */
 function StepStrip({
   steps,
+  ir,
   activeId,
   onStep,
 }: {
   steps: CanvasGraph['nodes']
+  ir: DraftIr
   activeId: string
   onStep: (id: string) => void
 }) {
@@ -199,6 +211,9 @@ function StepStrip({
       {steps.map((node, i) => {
         const meta = PRIMITIVE[node.type]
         const active = node.id === activeId
+        // The primitive names itself. A lookup table cannot know that a
+        // confidential input holding recipients should say "Recipients".
+        const { label } = inspectorFor(node.id, ir)
 
         return (
           <li key={node.id} style={{ display: 'flex', alignItems: 'center' }}>
@@ -233,7 +248,7 @@ function StepStrip({
               <span style={{ display: 'inline-flex', color: active ? 'var(--accent)' : meta.colour }}>
                 {meta.icon}
               </span>
-              {meta.label}
+              {label}
             </button>
           </li>
         )

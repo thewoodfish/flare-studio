@@ -27,6 +27,12 @@ import {
 export type InspectorRow = { label: string; value: string }
 
 export type InspectorPanel = {
+  /**
+   * Short name for the step strip. Distinct from `title` because the strip has
+   * room for a word and the header has room for a phrase -- and because a
+   * primitive knows what it should be called better than a lookup table does.
+   */
+  label: string
   title: string
   rows: InspectorRow[]
   /**
@@ -62,6 +68,7 @@ function policyPanel(ir: DraftIr): InspectorPanel {
   const conditions: any[] = ir.conditions ?? []
   const actions: any[] = ir.actions ?? []
   return {
+    label: 'Policy',
     title: 'Policy',
     rows: [
       { label: 'Name', value: ir.name ?? '' },
@@ -72,20 +79,24 @@ function policyPanel(ir: DraftIr): InspectorPanel {
         : []),
       { label: 'Actions', value: String(actions.length) },
     ],
-    help: 'Select a node to configure it.',
+    help: 'An overview of everything this policy does.',
   }
 }
 
 function assetPanel(ir: DraftIr): InspectorPanel {
   const asset = getAsset(ir.asset)
   return {
-    title: 'Asset',
+    label: 'Asset',
+    title: 'What it governs',
     rows: [
       { label: 'Symbol', value: asset.symbol },
       { label: 'Underlying', value: asset.name },
       { label: 'Decimals', value: String(asset.decimals) },
     ],
-    help: `Held as an FAsset so your ${asset.name} can participate in a policy without leaving your control.`,
+    help:
+      `Your ${asset.name} is held by the policy contract itself — not by us, and not by ` +
+      'anyone who could spend it. It stays yours, and you can withdraw it or cancel the ' +
+      'policy at any time before it runs.',
   }
 }
 
@@ -114,10 +125,13 @@ function triggerPanel(ir: DraftIr): InspectorPanel {
   // reads, the fields are what they change. Dropping the rows in favour of the
   // form would lose the plain-language statement of what the policy does.
   return {
-    title: 'Trigger',
+    label: 'Trigger',
+    title: 'What starts it',
     rows,
     editor: 'trigger',
-    help: 'What causes this policy to run. Nothing happens before it does.',
+    help:
+      'Nothing moves until this happens. Once it does, the policy runs on its own — ' +
+      'including when you cannot act, which is usually the whole point of having one.',
   }
 }
 
@@ -126,12 +140,15 @@ function conditionPanel(ir: DraftIr, index: number): InspectorPanel {
   if (!condition) return policyPanel(ir)
   const described = describeCondition(condition)
   return {
-    title: 'Condition',
+    label: 'Condition',
+    title: 'What must also hold',
     rows: [
       { label: 'Type', value: described.title },
       { label: 'Detail', value: described.summary },
     ],
-    help: 'Checked when the trigger fires. If it does not hold, the policy waits.',
+    help:
+      'Checked at the moment the trigger fires. If it does not hold, the policy waits ' +
+      'rather than running — the trigger alone is not enough.',
   }
 }
 
@@ -146,9 +163,13 @@ function actionPanel(ir: DraftIr, index: number): InspectorPanel {
   }
 
   return {
-    title: 'Action',
+    label: 'Action',
+    title: 'What happens',
     rows,
-    help: 'The whole balance is distributed by the shares you set, so nothing is ever left stranded in the policy.',
+    help:
+      'The whole balance is distributed by the shares you set, in one transaction. ' +
+      'The remainder from any uneven split goes to the last recipient, so nothing is ' +
+      'ever left stranded — once a policy has run it can never run again.',
   }
 }
 
@@ -161,12 +182,20 @@ function confidentialPanel(ir: DraftIr): InspectorPanel {
   // its own editor here rather than inherit this one by accident.
   const editable = actions.some((a) => a.kind === 'splitTransfer')
 
+  // Named for what it holds rather than for the primitive. "Private" left people
+  // asking whether it meant conditions; "Recipients" cannot be misread. The
+  // generic name survives for an action kind whose private inputs are not
+  // recipients, which is exactly when the specific one would be wrong.
   return {
-    title: 'Confidential inputs',
+    label: editable ? 'Recipients' : 'Confidential',
+    title: editable ? 'Who receives what' : 'Confidential inputs',
     rows: editable ? [] : [{ label: 'Private values', value: String(count) }],
     editor: editable ? 'recipients' : undefined,
     help: editable
-      ? undefined
+      ? 'This list is encrypted in your browser before anything is sent. Only a ' +
+        'fingerprint of it goes on chain — enough to prove later that nobody ' +
+        'substituted a different recipient, not enough for anyone to read who they ' +
+        'are. Not us, not a data provider, not someone reading the chain.'
       : 'These values are encrypted to the enclave and never appear on chain.',
   }
 }
