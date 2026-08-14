@@ -196,3 +196,15 @@ textarea {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Gallery cards. The lift on hover is the only affordance saying a card is a
+   door -- they carry no chevron, because two hints for one action is noise. */
+.template-card:hover {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-node);
+}
+
+.template-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

@@ -34,6 +34,7 @@ export function xrpInheritance(args: TemplateArgs) {
 export const definition: TemplateDefinition = {
   id: 'xrp-inheritance',
   title: 'XRP Inheritance',
+  section: 'Succession',
   summary:
     'If you stop checking in, your XRP is distributed privately to the people you choose.',
   // Shown to the user in the builder. Deliberately plain language: the product

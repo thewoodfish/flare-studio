@@ -11,6 +11,14 @@ export type TemplateArgs = {
 export type TemplateDefinition = {
   id: string
   title: string
+  /**
+   * Which gallery section this template files under. A plain string rather than
+   * a union: sections are a presentation grouping, and a template that invents a
+   * new one should not have to edit a type in the engine to do it. The gallery
+   * orders known sections and appends unknown ones, so a typo degrades to a
+   * stray heading instead of a build error.
+   */
+  section: string
   /** One line, shown on the gallery card. */
   summary: string
   /** Plain-language explanation shown in the builder. No blockchain vocabulary. */

@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { compile, getAsset, type CompiledPolicy } from '@flare-studio/policy'
 import { Address, Badge, Share } from './primitives'
 import { Button } from './shell'
+// Shared with the canvas so the review cannot state a different date to the node
+// the user just read, and so the fixed-locale rule lives in exactly one place.
+import { formatDate } from '@/lib/canvas'
 
 /**
  * The review step.
@@ -172,13 +175,7 @@ function Summary({ compiled }: { compiled: CompiledPolicy }) {
         {trigger.kind === 'timestamp' ? (
           <>
             On{' '}
-            <strong>
-              {new Date(trigger.executeAfter * 1000).toLocaleDateString(undefined, {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </strong>
+            <strong>{formatDate(trigger.executeAfter)}</strong>
             , it will run automatically.
           </>
         ) : (

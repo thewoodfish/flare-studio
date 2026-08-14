@@ -8,4 +8,11 @@ export * from './chain-payments.js'
 export * from './templates/types.js'
 
 // The registry, never an individual template. See templates/index.ts.
-export { TEMPLATES, getTemplate, liveTemplates } from './templates/index.js'
+export {
+  TEMPLATES,
+  getTemplate,
+  liveTemplates,
+  templatesBySection,
+  SECTION_ORDER,
+  type TemplateSection,
+} from './templates/index.js'

@@ -37,6 +37,7 @@ export function scheduledDistribution(args: TemplateArgs) {
 export const definition: TemplateDefinition = {
   id: 'scheduled-distribution',
   title: 'Scheduled Distribution',
+  section: 'Treasury',
   summary: 'Release funds to chosen recipients on a specific date, privately.',
   explainer:
     'Set a date. When it arrives, the policy distributes your funds according to ' +
