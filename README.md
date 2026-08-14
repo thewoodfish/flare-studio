@@ -343,12 +343,10 @@ something is written but has not been run against the live network, it says so.
 - ✅ **Builder, Deployment Manager, Monitor** — compile, deploy, configure the
   trigger, fund, check in, and the demo control, all exercised from the browser
   against live Coston2.
-- ⚠️ **Sealing and hand-off have not been proven from the browser.** They work
-  headlessly — that is what `pnpm demo` and `pnpm handoff-check` do — but the
-  first real browser deploy produced a policy with nothing sealed. The cause was
-  an ngrok interstitial served to browsers and not to Node, so the enclave's
-  public key came back as an HTML page; the fix is committed and untested. The
-  deploy dialog now checks the enclave up front and says so before spending gas.
+- ⚠️ **Sealing and the enclave hand-off are proven headlessly, not from the
+  browser.** `pnpm demo` and `pnpm handoff-check` exercise both against live
+  Coston2. The browser path to them is built and has not yet completed a clean
+  run end to end.
 - ✅ **Proven end to end on live Coston2.** `pnpm demo` compiles a policy, seals
   it, deploys it, funds it with real FXRP, hands the sealed half to the enclave,
   checks in, misses the next deadline, arms, has the enclave evaluate and sign,
