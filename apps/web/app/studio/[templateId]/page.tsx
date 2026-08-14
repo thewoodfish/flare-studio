@@ -3,27 +3,26 @@
 import { useMemo, useState } from 'react'
 import { notFound, useParams, useRouter } from 'next/navigation'
 import { TEMPLATES, type CompiledPolicy } from '@flare-studio/policy'
-import { PolicyDiagram } from '@/components/policy-diagram'
+import { PolicyForm } from '@/components/policy-form'
 import { Shell, TopBar, Button } from '@/components/shell'
 import { Rail } from '@/components/rail'
 import { Badge } from '@/components/primitives'
-import { RecipientsEditor, type Recipient } from '@/components/recipients-editor'
-import { TriggerEditor } from '@/components/trigger-editor'
+import type { Recipient } from '@/components/recipients-editor'
 import { ReviewDrawer } from '@/components/review-drawer'
 import { DeployDialog } from '@/components/deploy-dialog'
 import { WalletButton } from '@/components/wallet-button'
 import { useWallet } from '@/lib/wallet'
 import { graphFromIr } from '@/lib/canvas'
-import { inspectorFor, type InspectorPanel } from '@/lib/inspector'
 
 /**
  * The policy builder.
  *
  * The template arrives in the route, chosen from the gallery, so this screen has
- * one job: render whatever IR that template produced. Diagram and inspector are
- * both derived (see lib/canvas.ts and lib/inspector.ts) rather than hardcoded to
- * one policy shape -- a template with two actions, or a condition, or no private
- * inputs draws itself correctly without a change here.
+ * one job: render whatever IR that template produced.
+ *
+ * The form's steps are the policy's own primitives, derived from the IR (see
+ * lib/canvas.ts and lib/inspector.ts), so a template with two actions or a
+ * condition grows a step without a change here.
  */
 export default function BuilderPage() {
   const params = useParams<{ templateId: string }>()
@@ -75,9 +74,10 @@ export default function BuilderPage() {
     [ir],
   )
 
-  const [selected, setSelected] = useState<string | null>(null)
-
-  const panel = useMemo(() => inspectorFor(selected, ir ?? {}), [selected, ir])
+  // The step is the primitive being edited. Defaulting to the trigger rather
+  // than the asset puts the user on the first thing they can actually change --
+  // the asset is fixed while FXRP is the only live one.
+  const [step, setStep] = useState<string>('trigger')
 
   // A URL naming a template that does not exist is a 404, not a silent fallback
   // to the first one -- a fallback would quietly build the wrong policy.
@@ -86,16 +86,6 @@ export default function BuilderPage() {
   return (
     <Shell
       rail={<Rail />}
-      inspector={
-        <Inspector
-          panel={panel}
-          recipients={recipients}
-          onRecipientsChange={setRecipients}
-          trigger={ir.trigger}
-          assetSymbol={ir.asset}
-          onTriggerChange={setTrigger}
-        />
-      }
     >
       <TopBar
         title={ir.name}
@@ -119,7 +109,16 @@ export default function BuilderPage() {
         }
       />
 
-      <PolicyDiagram graph={graph} selected={selected} onSelect={setSelected} />
+      <PolicyForm
+        graph={graph}
+        ir={ir}
+        step={step}
+        onStep={setStep}
+        recipients={recipients}
+        onRecipientsChange={setRecipients}
+        onTriggerChange={setTrigger}
+        onReview={() => setReviewing(true)}
+      />
 
       {reviewing && (
         <ReviewDrawer
@@ -153,59 +152,6 @@ export default function BuilderPage() {
  * Renders whatever panel the inspector module produced. It knows about rows and
  * named editors, and nothing about assets, triggers or actions.
  */
-function Inspector({
-  panel,
-  recipients,
-  onRecipientsChange,
-  trigger,
-  assetSymbol,
-  onTriggerChange,
-}: {
-  panel: InspectorPanel
-  recipients: Recipient[]
-  onRecipientsChange: (next: Recipient[]) => void
-  trigger: Record<string, any>
-  assetSymbol: string
-  onTriggerChange: (next: Record<string, any>) => void
-}) {
-  return (
-    <div style={{ padding: 'var(--space-5)' }}>
-      <h4
-        style={{
-          fontSize: 11,
-          fontWeight: 560,
-          letterSpacing: '0.02em',
-          textTransform: 'uppercase',
-          color: 'var(--text-tertiary)',
-          marginBottom: 'var(--space-4)',
-        }}
-      >
-        {panel.title}
-      </h4>
-
-      {panel.rows.map((row) => (
-        <Row key={row.label} label={row.label} value={row.value} />
-      ))}
-
-      {panel.editor === 'recipients' && (
-        <RecipientsEditor recipients={recipients} onChange={onRecipientsChange} />
-      )}
-
-      {panel.editor === 'trigger' && (
-        <div style={{ marginTop: 'var(--space-5)' }}>
-          <TriggerEditor
-            trigger={trigger}
-            assetSymbol={assetSymbol}
-            onChange={onTriggerChange}
-          />
-        </div>
-      )}
-
-      {panel.help && <p style={helpText}>{panel.help}</p>}
-    </div>
-  )
-}
-
 const helpText = {
   fontSize: 12.5,
   color: 'var(--text-secondary)',

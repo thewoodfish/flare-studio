@@ -9,8 +9,8 @@ self-executing asset policies on Flare.
 
 A **policy** is a rule your assets follow on their own: what is governed, what
 has to happen before anything moves, who receives what, and which of that stays
-private. You compose one on a canvas. It compiles to real contracts and runs
-without you — including when you cannot act, which is usually the moment it
+private. You fill it in one primitive at a time. It compiles to real contracts
+and runs without you — including when you cannot act, which is usually the moment it
 matters.
 
 ![The template gallery](docs/screenshots/gallery.jpg)
@@ -130,9 +130,9 @@ As a policy, that is:
    for anyone to read who they are.
 4. **Action** — the balance is split by the shares you fixed, and paid out.
 
-Choosing a template opens the builder. The diagram is drawn from the policy
-itself rather than from a fixed layout — a template with two actions, or a
-condition, or nothing confidential draws itself correctly:
+Choosing a template opens the builder. Its steps are the policy's own
+primitives, in the order the engine evaluates them — so a template with two
+actions, or a condition, or nothing confidential grows a step by itself:
 
 ![The policy builder](docs/screenshots/builder.jpg)
 
@@ -208,7 +208,7 @@ The path a policy takes, and where the plaintext is allowed to exist:
 
 ```mermaid
 flowchart TD
-    A["Builder canvas<br/><i>apps/web</i>"] --> B["Compiler<br/><i>packages/policy</i>"]
+    A["Policy builder<br/><i>apps/web</i>"] --> B["Compiler<br/><i>packages/policy</i>"]
     B --> C["publicArgs<br/>commitment, trigger, asset"]
     B --> D["privateConfig<br/>recipients and shares"]
 
@@ -266,15 +266,10 @@ claimed:
   `ConfidentialPolicy`, no schema change, no compiler branch.
 - **Two templates, one code path.** `compile.test.ts` runs both through the same
   compiler and asserts they differ *only* in their trigger: same recipients, same
-  salt, byte-identical confidential half. It is visible on the canvas — this is
-  the same policy as the screenshot above, switched to template #2, with one node
-  changed and everything else untouched:
-
-  ![Choosing a different trigger](docs/screenshots/trigger-editor.jpg)
-
-  Every trigger is selectable on any template, and the canvas redraws as you
-  change it — an inheritance policy switched to a fixed date is still the same
-  engine, the same contracts, and the same confidential half.
+  salt, byte-identical confidential half. It is visible in the builder too: every
+  trigger is selectable on any template, so an inheritance policy switched to a
+  fixed date is still the same engine, the same contracts, and the same
+  confidential half — one step changes and nothing else does.
 - **Two assets, no code change.** A policy compiles against `FBTC` — a different
   chain with different decimals — with no change outside `assets.ts`. Adding an
   FAsset the day it goes live is one registry entry.
@@ -413,7 +408,7 @@ not ours is called out explicitly, because `apps/extension` is a fork of Flare's
 | `packages/contracts/test` | 1,158 | 56 tests, including two fork tests against live Coston2 — `FlareTeeManager` and `FdcVerification` |
 | `packages/policy/src` | 998 | Policy IR + zod schema, compiler, commitment, ECIES to geth's profile, payment references, asset registry, two templates |
 | `packages/policy/test` | 689 | 60 tests, including the cross-language commitment vectors, the payment-reference vectors and the enclave wire format |
-| `apps/web` | 5,660 | Template gallery, IR-derived canvas and inspector, review step, Deployment Manager, Monitor, wallet, deploy flow, 50 tests |
+| `apps/web` | 5,400 | Template gallery, IR-derived policy form, review step, Deployment Manager, Monitor, wallet, deploy flow, 50 tests |
 | `apps/orchestrator` | 1,236 | Instruction sending, evaluate/execute round trip, `pnpm demo`, `pnpm handoff-check` |
 | `scripts` | 460 | Genericity guard, `pnpm preflight`, `pnpm sync-web-env` |
 | Extension — **ours** | 1,220 | `policy.go` (commitment + EIP-712 in Go), the `STORE`/`EVALUATE` handlers in `extension.go`, `types.go`, `InstructionSender.sol`, and 608 lines of Go tests |
