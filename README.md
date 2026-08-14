@@ -76,7 +76,7 @@ particular policy is *for*.
 | **Asset** | What is governed | FXRP, live on Coston2. `FBTC` sits in the registry, disabled, and a test compiles a policy against it |
 | **Trigger** | What starts evaluation | Three deployed and all three selectable in the builder: an on-chain check-in, a fixed date, and an FDC-attested missing payment |
 | **Conditions** | What else must hold | The `ICondition` seam exists and is deliberately empty — see [what we did not build](#what-we-did-not-build) |
-| **Confidential inputs** | What nobody may read | Recipients and their shares, sealed to a TEE and never on-chain in the clear |
+| **Confidential inputs** | What stays private | Recipients and their shares, sealed in the browser and readable only inside the enclave. Nothing identifies them on chain until the policy pays out — see [when the split becomes public](#when-the-split-becomes-public) |
 | **Actions** | What happens | Proportional split to any number of recipients |
 
 Compose those differently and you get different products: inheritance, scheduled
@@ -249,11 +249,28 @@ flowchart TD
     style I fill:#f5f1fe,stroke:#6134c4
 ```
 
-The shaded path is the only place the recipient list exists in plaintext: the
-user's browser, and inside the enclave. It is sealed before it leaves the
-browser and submitted to the chain directly, so no server of ours ever holds it
-— which is why the orchestrator can run on ordinary hosting without weakening
-the claim.
+Until the final step, the shaded path is the only place the recipient list
+exists in plaintext: the user's browser, and inside the enclave. It is sealed
+before it leaves the browser and submitted to the chain directly, so no server
+of ours ever holds it — which is why the orchestrator can run on ordinary
+hosting without weakening the claim.
+
+### When the split becomes public
+
+`execute()` takes the revealed shares as calldata and checks them against the
+commitment fixed at deploy time. So at the moment a policy pays out, who gets
+what becomes public and stays public.
+
+That is the design rather than a leak, and the timing is the reason it costs
+nothing: in that same transaction the recipients receive ERC-20 transfers, which
+are public events whatever we do. Revealing the split when the money moves
+discloses nothing the transfers would not have. What matters is everything
+before it — for the year, or the decade, that the policy sits armed, the chain
+holds a hash and nothing else.
+
+If you need the recipients to stay private *after* payout as well, this design
+does not give you that, and no amount of encryption at rest would: the transfers
+themselves are the disclosure.
 
 ### The security model
 
@@ -422,8 +439,10 @@ authorise the split the owner already chose.
 
 The second one is the harder claim, and it is why the TEE work came first:
 encryption plus a key-holding server is the superficial answer to a bounty named
-Confidential Compute. There is no server. The plaintext exists in the owner's
-browser and inside the enclave, and nowhere in between.
+Confidential Compute. There is no server: between the browser and the enclave
+the payload is ciphertext nobody in the path can open, including us. It becomes
+public only when the policy pays out, in the same transaction as the transfers
+that would have disclosed it anyway.
 
 ---
 
