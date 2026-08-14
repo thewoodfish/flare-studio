@@ -173,9 +173,12 @@ know the difference, and that is the point.
 |---|---|
 | **FAssets** ✅ | Holds real XRP inside a smart contract as FXRP — a live FAsset on Coston2, not a mock token. The demo moves real FXRP. |
 | **FCC** ✅ | The policy is decrypted and evaluated inside a TEE registered with Flare's `FlareTeeManager`, validated by data-provider consensus. `execute()` accepts a distribution only from a machine the registry reports as `PRODUCTION` — which is why the payout in the run below went through. |
-| **FDC** ✅ | `ReferencedPaymentNonexistence` proves an expected payment *did not arrive* by a deadline. Proving an absence is normally impossible for a contract — it can only see what did happen — and this is what turns proof-of-life from a self-reported timer into an attested observation. `FdcNonexistenceTrigger` is deployed and consumes proofs through Flare's `FdcVerification`. |
+| **FDC** ◐ | `ReferencedPaymentNonexistence` proves an expected payment *did not arrive* by a deadline. Proving an absence is normally impossible for a contract — it can only see what did happen — and this is what turns proof-of-life from a self-reported timer into an attested observation. `FdcNonexistenceTrigger` is deployed and consumes proofs through Flare's `FdcVerification`, resolved from the registry. It has not yet fired from a live attestation — the demo runs on the check-in trigger. |
 
-All three are load-bearing, and each one is doing work the others cannot.
+All three are load-bearing, and each one is doing work the others cannot. Two
+are demonstrated end to end on-chain; the third is deployed and tested but has
+not yet been driven by a live attestation, and is marked ◐ rather than ✅ for
+that reason.
 
 ### The two proof-of-life triggers
 
@@ -337,9 +340,15 @@ something is written but has not been run against the live network, it says so.
   re-derived in Go, with all three asserted against one shared fixture.
 - ✅ **Go TEE extension** — custom `POLICY` op type, `STORE` and `EVALUATE`
   handlers, ECIES decrypt, EIP-712 signing.
-- ✅ **Builder, Deployment Manager, Monitor** — the full browser flow: compile,
-  seal, deploy, configure the trigger, hand off to the enclave, fund, check in,
-  and the demo control.
+- ✅ **Builder, Deployment Manager, Monitor** — compile, deploy, configure the
+  trigger, fund, check in, and the demo control, all exercised from the browser
+  against live Coston2.
+- ⚠️ **Sealing and hand-off have not been proven from the browser.** They work
+  headlessly — that is what `pnpm demo` and `pnpm handoff-check` do — but the
+  first real browser deploy produced a policy with nothing sealed. The cause was
+  an ngrok interstitial served to browsers and not to Node, so the enclave's
+  public key came back as an HTML page; the fix is committed and untested. The
+  deploy dialog now checks the enclave up front and says so before spending gas.
 - ✅ **Proven end to end on live Coston2.** `pnpm demo` compiles a policy, seals
   it, deploys it, funds it with real FXRP, hands the sealed half to the enclave,
   checks in, misses the next deadline, arms, has the enclave evaluate and sign,
