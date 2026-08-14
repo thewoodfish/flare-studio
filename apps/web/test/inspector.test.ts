@@ -129,11 +129,15 @@ describe('inspectorFor', () => {
     })
 
     /**
-     * "Private" as a step name had people asking whether it meant conditions.
-     * The step is named for what it holds, which cannot be misread.
+     * Steps are named for the primitive, not its contents. "Recipients" is what
+     * one action kind keeps private; naming the slot after it would teach a
+     * model the engine does not have.
      */
-    it('names the step for what it holds', () => {
-      expect(inspectorFor('confidential', ir()).label).toBe('Recipients')
+    it('names the step for the primitive, not for what is in it', () => {
+      expect(inspectorFor('confidential', ir()).label).toBe('Confidential inputs')
+      expect(
+        inspectorFor('confidential', ir({ actions: [{ kind: 'notifyOnly' }] })).label,
+      ).toBe('Confidential inputs')
     })
 
     /** Every step explains itself; a step with no help is a step with no answer. */
@@ -153,7 +157,6 @@ describe('inspectorFor', () => {
     it('does not mount it for an action kind that is not a split transfer', () => {
       const panel = inspectorFor('confidential', ir({ actions: [{ kind: 'notifyOnly' }] }))
       expect(panel.editor).toBeUndefined()
-      expect(panel.label).toBe('Confidential')
       expect(value(panel, 'Private values')).toBe('0')
     })
   })

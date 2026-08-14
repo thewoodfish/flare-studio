@@ -182,12 +182,17 @@ function confidentialPanel(ir: DraftIr): InspectorPanel {
   // its own editor here rather than inherit this one by accident.
   const editable = actions.some((a) => a.kind === 'splitTransfer')
 
-  // Named for what it holds rather than for the primitive. "Private" left people
-  // asking whether it meant conditions; "Recipients" cannot be misread. The
-  // generic name survives for an action kind whose private inputs are not
-  // recipients, which is exactly when the specific one would be wrong.
+  // The step is named for the primitive, not for what happens to be in it.
+  // "Recipients" read better and was wrong: recipients are what a splitTransfer
+  // keeps private, and naming the slot after one action kind's contents teaches
+  // a model the engine does not have. The five primitives are the vocabulary
+  // everywhere else -- the README, the IR, the contracts -- and the strip is
+  // where a user learns them.
+  //
+  // The original complaint was that "Private" was confusable with "Conditions",
+  // which it was: same prefix, adjacent in the strip. The full name is not.
   return {
-    label: editable ? 'Recipients' : 'Confidential',
+    label: 'Confidential inputs',
     title: editable ? 'Who receives what' : 'Confidential inputs',
     rows: editable ? [] : [{ label: 'Private values', value: String(count) }],
     editor: editable ? 'recipients' : undefined,

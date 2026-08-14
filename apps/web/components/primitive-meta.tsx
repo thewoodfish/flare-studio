@@ -10,6 +10,11 @@ import type { DiagramNodeType } from '@/lib/canvas'
  * that assigns visual identity to a primitive, so a new one is a single entry
  * here and the step strip, the panel header and anything later all agree
  * without being told.
+ *
+ * The labels are the engine's own five words. A step strip is where a user
+ * learns what a policy is made of, so it uses the vocabulary the IR, the
+ * contracts and the README use -- not the vocabulary of whichever template
+ * happens to be open.
  */
 export const PRIMITIVE: Record<
   DiagramNodeType,
@@ -18,7 +23,7 @@ export const PRIMITIVE: Record<
   asset: { label: 'Asset', colour: '#1e5fa8', icon: <CoinIcon /> },
   trigger: { label: 'Trigger', colour: '#96601a', icon: <BoltIcon /> },
   condition: { label: 'Condition', colour: '#0f7b4a', icon: <FilterIcon /> },
-  confidential: { label: 'Private', colour: '#6134c4', icon: <LockIcon /> },
+  confidential: { label: 'Confidential inputs', colour: '#6134c4', icon: <LockIcon /> },
   action: { label: 'Action', colour: '#e62058', icon: <ArrowIcon /> },
 }
 
