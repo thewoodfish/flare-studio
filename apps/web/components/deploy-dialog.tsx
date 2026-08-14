@@ -9,7 +9,7 @@ import { Button } from './shell'
 import { ADDRESSES, contractsConfigured, explorerTx } from '@/lib/chain'
 import { erc20Abi } from '@/lib/abi'
 import { publicClient, useWallet } from '@/lib/wallet'
-import { deployPolicy, type DeployStep } from '@/lib/deploy'
+import { deployPolicy, probeEnclaveKey, type DeployStep } from '@/lib/deploy'
 import { exportEntry, type VaultEntry } from '@/lib/vault'
 import { WalletButton } from './wallet-button'
 
@@ -43,6 +43,7 @@ export function DeployDialog({
   const [running, setRunning] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [entry, setEntry] = useState<VaultEntry | null>(null)
+  const [enclave, setEnclave] = useState<{ ok: boolean; reason?: string } | null>(null)
 
   // The wallet's own balance, so "deposit" can be a decision rather than a guess.
   useEffect(() => {
@@ -61,6 +62,20 @@ export function DeployDialog({
       .catch(() => {
         if (!cancelled) setHeld(null)
       })
+    return () => {
+      cancelled = true
+    }
+  }, [wallet.account, wallet.onCoston2])
+
+  // Asked before the user commits gas. Finding out afterwards that nothing was
+  // sealed means a policy that can never pay out, which is exactly the failure
+  // this check exists to make visible while it is still cheap.
+  useEffect(() => {
+    if (!wallet.account || !wallet.onCoston2) return
+    let cancelled = false
+    void probeEnclaveKey().then((r) => {
+      if (!cancelled) setEnclave(r)
+    })
     return () => {
       cancelled = true
     }
@@ -174,6 +189,43 @@ export function DeployDialog({
           </div>
         ) : (
           <>
+            {!steps && enclave && !enclave.ok && (
+              <div style={{ padding: 'var(--space-5) var(--space-5) 0' }}>
+                <div
+                  style={{
+                    padding: 'var(--space-4)',
+                    background: 'var(--warning-subtle)',
+                    border: '1px solid var(--warning)',
+                    borderRadius: 'var(--radius-md)',
+                  }}
+                >
+                  <Badge tone="warning">The enclave is unreachable</Badge>
+                  <p
+                    style={{
+                      fontSize: 12.5,
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.6,
+                      marginTop: 'var(--space-3)',
+                    }}
+                  >
+                    Your confidential inputs cannot be encrypted right now, so this policy
+                    would deploy without them and <strong>could never pay out</strong> until
+                    they are sealed and sent. You can deploy anyway and do that later from the
+                    policy screen — or stop, fix the connection, and start again.
+                  </p>
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--text-tertiary)',
+                      marginTop: 'var(--space-2)',
+                    }}
+                  >
+                    {enclave.reason}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {!steps && (
               <div style={{ padding: 'var(--space-5)' }}>
                 <label

@@ -385,14 +385,56 @@ function policyAddressFromReceipt(logs: readonly { address: string; data: Hex; t
  * which would surface as a failed execution weeks later rather than a failed
  * deploy now.
  */
+/**
+ * Can the enclave be sealed to right now?
+ *
+ * Exported so the deploy dialog can ask *before* the user spends gas. A policy
+ * deployed without a sealed payload is correct, funded and armable, and can
+ * never be evaluated -- which is a bad thing to discover on the monitor screen
+ * afterwards. Reported as a warning rather than a block, because deploying now
+ * and handing off later is legitimate.
+ */
+export async function probeEnclaveKey(): Promise<{ ok: boolean; reason?: string }> {
+  if (!process.env.NEXT_PUBLIC_EXT_PROXY_URL) {
+    return { ok: false, reason: 'No extension proxy is configured in this build.' }
+  }
+  try {
+    const key = await fetchTeePublicKey()
+    return key ? { ok: true } : { ok: false, reason: 'The proxy returned no machine key.' }
+  } catch (e) {
+    return { ok: false, reason: message(e) }
+  }
+}
+
 async function fetchTeePublicKey(): Promise<Hex | null> {
   const base = process.env.NEXT_PUBLIC_EXT_PROXY_URL
   if (!base) return null
 
   const response = await fetch(`${base.replace(/\/$/, '')}/info`, {
     signal: AbortSignal.timeout(5_000),
+    headers: {
+      Accept: 'application/json',
+      // Without this, an ngrok free tunnel serves its HTML interstitial to
+      // anything that looks like a browser and proxies only for everything
+      // else. The headless demo runs under Node and never sees it; the browser
+      // gets a warning page where it expected JSON, and the deploy quietly
+      // records "no enclave key available". Any value works; the header only
+      // has to be present.
+      'ngrok-skip-browser-warning': 'true',
+    },
   })
   if (!response.ok) throw new Error(`proxy returned ${response.status}`)
+
+  // Assert the content type before parsing. A tunnel interstitial, a login
+  // page or a 200-with-HTML error all fail here with something that names the
+  // cause, rather than as a JSON parse error twenty lines away.
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.includes('json')) {
+    throw new Error(
+      `proxy returned ${contentType || 'an unknown content type'} instead of JSON -- ` +
+        'the tunnel is probably serving a warning or error page rather than the enclave',
+    )
+  }
 
   // The key arrives as {x, y} coordinates, not a hex string. Parsing it here by
   // hand is how this silently returned an object that eciesEncrypt rejected,
