@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="docs/logo.png" alt="Flare Studio" width="420">
+  <img src="docs/logo.png" alt="Flare Studio — Your Crypto. Your Policy." width="520">
 </p>
-
-<p align="center"><strong>Your Crypto. Your Policy.</strong></p>
 
 ---
 
