@@ -1,18 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { notFound, useParams, useRouter } from 'next/navigation'
-import {
-  ReactFlow,
-  Background,
-  BackgroundVariant,
-  Controls,
-  useNodesState,
-  useEdgesState,
-  type Node,
-} from '@xyflow/react'
 import { TEMPLATES, type CompiledPolicy } from '@flare-studio/policy'
-import { nodeTypes } from '@/components/nodes'
+import { PolicyDiagram } from '@/components/policy-diagram'
 import { Shell, TopBar, Button } from '@/components/shell'
 import { Rail } from '@/components/rail'
 import { Badge } from '@/components/primitives'
@@ -29,7 +20,7 @@ import { inspectorFor, type InspectorPanel } from '@/lib/inspector'
  * The policy builder.
  *
  * The template arrives in the route, chosen from the gallery, so this screen has
- * one job: render whatever IR that template produced. Canvas and inspector are
+ * one job: render whatever IR that template produced. Diagram and inspector are
  * both derived (see lib/canvas.ts and lib/inspector.ts) rather than hardcoded to
  * one policy shape -- a template with two actions, or a condition, or no private
  * inputs draws itself correctly without a change here.
@@ -84,38 +75,7 @@ export default function BuilderPage() {
     [ir],
   )
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(graph.nodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(graph.edges)
   const [selected, setSelected] = useState<string | null>(null)
-
-  // Keep node *data* in sync with the draft while preserving positions the user
-  // has dragged. Replacing the whole array would yank nodes back to their seed
-  // positions on every keystroke.
-  //
-  // When the derived graph gains or loses a node -- a condition added, the last
-  // recipient removed -- positions cannot be preserved for something that did
-  // not exist, so the graph is adopted wholesale. Comparing ids rather than
-  // lengths catches a swap that happens to keep the count the same.
-  useEffect(() => {
-    setNodes((current) => {
-      const same =
-        current.length === graph.nodes.length &&
-        current.every((n, i) => n.id === graph.nodes[i]!.id)
-
-      if (!same) return graph.nodes
-
-      return current.map((n) => {
-        const fresh = graph.nodes.find((f) => f.id === n.id)
-        return fresh ? { ...n, data: fresh.data } : n
-      })
-    })
-    setEdges(graph.edges)
-  }, [graph, setNodes, setEdges])
-
-  const onSelectionChange = useCallback(
-    ({ nodes: sel }: { nodes: Node[] }) => setSelected(sel[0]?.id ?? null),
-    [],
-  )
 
   const panel = useMemo(() => inspectorFor(selected, ir ?? {}), [selected, ir])
 
@@ -159,28 +119,7 @@ export default function BuilderPage() {
         }
       />
 
-      <div style={{ flex: 1, position: 'relative' }}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onSelectionChange={onSelectionChange}
-          fitView
-          // maxZoom matters: with only a handful of nodes, fitView happily
-          // scales past 1 and every type size in the design system inflates
-          // with it. Never zoom in past natural size.
-          fitViewOptions={{ padding: 0.28, maxZoom: 1 }}
-          minZoom={0.4}
-          maxZoom={1.6}
-          proOptions={{ hideAttribution: true }}
-          defaultEdgeOptions={{ style: { stroke: 'var(--border-strong)', strokeWidth: 1.5 } }}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#e4e4e7" />
-          <Controls showInteractive={false} />
-        </ReactFlow>
-      </div>
+      <PolicyDiagram graph={graph} selected={selected} onSelect={setSelected} />
 
       {reviewing && (
         <ReviewDrawer

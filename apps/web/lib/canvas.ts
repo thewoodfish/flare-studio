@@ -1,6 +1,5 @@
 'use client'
 
-import type { Edge, Node } from '@xyflow/react'
 import { getAsset } from '@flare-studio/policy'
 
 /**
@@ -18,33 +17,41 @@ import { getAsset } from '@flare-studio/policy'
  *
  * `describe*` returns plain language on purpose. "FDC ReferencedPaymentNonexistence"
  * belongs in the under-the-hood panel, not on a node.
+ *
+ * Nodes carry no coordinates. The diagram is laid out in CSS from the order and
+ * the types below, which is what a picture of a policy needs -- the previous
+ * version emitted x/y for a drag-and-drop canvas whose dragging did nothing.
  */
+
+export type DiagramNodeType = 'asset' | 'trigger' | 'condition' | 'confidential' | 'action'
+
+export type DiagramNode = {
+  id: string
+  type: DiagramNodeType
+  data: Record<string, any>
+}
+
+export type DiagramEdge = { id: string; source: string; target: string }
 
 /** The IR as the builder holds it: built, not yet parsed. */
 export type DraftIr = Record<string, any>
 
-const COLUMN = 260
-const ROW = 170
-const SPREAD = 320
-
-export type CanvasGraph = { nodes: Node[]; edges: Edge[] }
+export type CanvasGraph = { nodes: DiagramNode[]; edges: DiagramEdge[] }
 
 export function graphFromIr(ir: DraftIr): CanvasGraph {
-  const nodes: Node[] = []
-  const edges: Edge[] = []
+  const nodes: DiagramNode[] = []
+  const edges: DiagramEdge[] = []
 
   const asset = getAsset(ir.asset)
   nodes.push({
     id: 'asset',
     type: 'asset',
-    position: { x: COLUMN, y: 0 },
     data: { symbol: asset.symbol, name: asset.name },
   })
 
   nodes.push({
     id: 'trigger',
     type: 'trigger',
-    position: { x: COLUMN, y: ROW },
     data: describeTrigger(ir.trigger),
   })
   edges.push({ id: 'asset-trigger', source: 'asset', target: 'trigger' })
@@ -59,7 +66,6 @@ export function graphFromIr(ir: DraftIr): CanvasGraph {
     nodes.push({
       id,
       type: 'condition',
-      position: { x: COLUMN, y: ROW * (2 + i) },
       data: describeCondition(condition),
     })
     edges.push({ id: `${upstream}-${id}`, source: upstream, target: id })
@@ -67,7 +73,6 @@ export function graphFromIr(ir: DraftIr): CanvasGraph {
   })
 
   const actions: any[] = ir.actions ?? []
-  const actionRow = ROW * (2 + conditions.length)
 
   // Confidential inputs are a property of the actions, not a fixed node: a
   // policy whose actions carry nothing private should not display a lock.
@@ -80,7 +85,6 @@ export function graphFromIr(ir: DraftIr): CanvasGraph {
     nodes.push({
       id: 'confidential',
       type: 'confidential',
-      position: { x: COLUMN - SPREAD, y: actionRow },
       data: { count: confidentialCount },
     })
     edges.push({
@@ -90,14 +94,12 @@ export function graphFromIr(ir: DraftIr): CanvasGraph {
     })
   }
 
-  // Actions fan out to the right of centre. One action -- overwhelmingly the
-  // common case -- sits directly under the chain.
+  // Actions sit on the final row beside the confidential node, in policy order.
   actions.forEach((action, i) => {
     const id = `action-${i}`
     nodes.push({
       id,
       type: 'action',
-      position: { x: COLUMN + (hasConfidential ? SPREAD * 0.25 : 0) + i * SPREAD, y: actionRow },
       data: describeAction(action),
     })
     edges.push({ id: `${upstream}-${id}`, source: upstream, target: id })

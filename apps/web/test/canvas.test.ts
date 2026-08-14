@@ -127,7 +127,7 @@ describe('graphFromIr', () => {
     )
   })
 
-  it('gives every action its own node and edge', () => {
+  it('gives every action its own node, in policy order', () => {
     const g = graphFromIr(
       ir({
         actions: [
@@ -142,9 +142,21 @@ describe('graphFromIr', () => {
       'action-1',
       'action-2',
     ])
-    // Fanned out rather than stacked, or they would render on top of each other.
-    const xs = g.nodes.filter((n) => n.id.startsWith('action-')).map((n) => n.position.x)
-    expect(new Set(xs).size).toBe(3)
+    // Each one is reachable from the chain, or it would draw detached.
+    for (const id of ['action-0', 'action-1', 'action-2']) {
+      expect(g.edges.some((e) => e.target === id)).toBe(true)
+    }
+  })
+
+  /**
+   * The diagram lays out in CSS from order and type. Coordinates were needed by
+   * the drag-and-drop canvas this replaced; carrying them now would be dead data
+   * that quietly rots.
+   */
+  it('carries no coordinates', () => {
+    for (const node of graphFromIr(ir()).nodes) {
+      expect(node).not.toHaveProperty('position')
+    }
   })
 
   it('survives a policy with no actions at all', () => {

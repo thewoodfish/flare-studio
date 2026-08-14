@@ -1,7 +1,7 @@
 'use client'
 
-import { Handle, Position, type NodeProps } from '@xyflow/react'
 import type { ReactNode } from 'react'
+import type { DiagramNode } from '@/lib/canvas'
 
 /**
  * Canvas node types, one per policy primitive.
@@ -13,6 +13,11 @@ import type { ReactNode } from 'react'
  *
  * Confidential nodes carry a distinct lock treatment and a violet border. That
  * one visual does more to explain the product than any amount of copy.
+ *
+ * These are plain cards. They were React Flow nodes, which brought drag, connect
+ * and delete handlers that all did nothing to the policy -- three affordances
+ * that lied. A diagram that explains is worth keeping; an editor that cannot
+ * edit is not.
  */
 
 type Category = 'asset' | 'trigger' | 'condition' | 'confidential' | 'action'
@@ -31,16 +36,12 @@ function NodeShell({
   summary,
   selected,
   children,
-  hasSource = true,
-  hasTarget = true,
 }: {
   category: Category
   title: string
   summary: string
   selected?: boolean
   children?: ReactNode
-  hasSource?: boolean
-  hasTarget?: boolean
 }) {
   const meta = CATEGORY[category]
   const isConfidential = category === 'confidential'
@@ -64,8 +65,6 @@ function NodeShell({
         overflow: 'hidden',
       }}
     >
-      {hasTarget && <Handle type="target" position={Position.Top} style={handleStyle} />}
-
       <header
         style={{
           display: 'flex',
@@ -106,48 +105,34 @@ function NodeShell({
         </div>
         {children}
       </div>
-
-      {hasSource && <Handle type="source" position={Position.Bottom} style={handleStyle} />}
     </div>
   )
 }
 
-const handleStyle = {
-  width: 7,
-  height: 7,
-  background: 'var(--surface)',
-  border: '1.5px solid var(--border-strong)',
-}
+/** Renders whichever primitive the node is. The diagram never switches on type. */
+export function PolicyNode({ node, selected }: { node: DiagramNode; selected?: boolean }) {
+  const d = node.data as Record<string, any>
 
-export function AssetNode({ data, selected }: NodeProps) {
-  const d = data as { symbol: string; name: string }
+  if (node.type === 'asset') {
+    return (
+      <NodeShell
+        category="asset"
+        title={d.symbol}
+        summary={`Governs your ${d.name}`}
+        selected={selected}
+      />
+    )
+  }
+
+  if (node.type === 'confidential') return <ConfidentialNode count={d.count} selected={selected} />
+
   return (
     <NodeShell
-      category="asset"
-      title={d.symbol}
-      summary={`Governs your ${d.name}`}
-      selected={selected}
-      hasTarget={false}
-    />
-  )
-}
-
-export function TriggerNode({ data, selected }: NodeProps) {
-  const d = data as { title: string; summary: string }
-  return (
-    <NodeShell
-      category="trigger"
+      category={node.type}
       title={d.title}
       summary={d.summary}
       selected={selected}
     />
-  )
-}
-
-export function ConditionNode({ data, selected }: NodeProps) {
-  const d = data as { title: string; summary: string }
-  return (
-    <NodeShell category="condition" title={d.title} summary={d.summary} selected={selected} />
   )
 }
 
@@ -159,8 +144,8 @@ export function ConditionNode({ data, selected }: NodeProps) {
  * person who wrote the policy sees "3 recipients, encrypted" here, and opens the
  * inspector to see who.
  */
-export function ConfidentialNode({ data, selected }: NodeProps) {
-  const d = data as { count: number }
+function ConfidentialNode({ count, selected }: { count: number; selected?: boolean }) {
+  const d = { count }
   return (
     <NodeShell
       category="confidential"
@@ -204,27 +189,6 @@ export function ConfidentialNode({ data, selected }: NodeProps) {
       </div>
     </NodeShell>
   )
-}
-
-export function ActionNode({ data, selected }: NodeProps) {
-  const d = data as { title: string; summary: string }
-  return (
-    <NodeShell
-      category="action"
-      title={d.title}
-      summary={d.summary}
-      selected={selected}
-      hasSource={false}
-    />
-  )
-}
-
-export const nodeTypes = {
-  asset: AssetNode,
-  trigger: TriggerNode,
-  condition: ConditionNode,
-  confidential: ConfidentialNode,
-  action: ActionNode,
 }
 
 /* Icons: one family, one stroke width (1.4), one 16px box. */

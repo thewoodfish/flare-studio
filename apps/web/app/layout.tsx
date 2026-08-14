@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import '@xyflow/react/dist/base.css'
 
 export const metadata: Metadata = {
   title: 'Flare Studio',
