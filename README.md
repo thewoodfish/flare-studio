@@ -21,7 +21,7 @@ particular policy is *for*.
 | | | Ships today |
 |---|---|---|
 | **Asset** | What is governed | FXRP, live on Coston2. `FBTC` sits in the registry, disabled, and a test compiles a policy against it |
-| **Trigger** | What starts evaluation | Three deployed: an on-chain check-in, a fixed date, and an FDC-attested missing payment |
+| **Trigger** | What starts evaluation | Three deployed and all three selectable in the builder: an on-chain check-in, a fixed date, and an FDC-attested missing payment |
 | **Conditions** | What else must hold | The `ICondition` seam exists and is deliberately empty — see [what we did not build](#what-we-did-not-build) |
 | **Confidential inputs** | What nobody may read | Recipients and their shares, sealed to a TEE and never on-chain in the clear |
 | **Actions** | What happens | Proportional split to any number of recipients |
@@ -398,13 +398,13 @@ not ours is called out explicitly, because `apps/extension` is a fork of Flare's
 | `packages/contracts/test` | 1,158 | 56 tests, including two fork tests against live Coston2 — `FlareTeeManager` and `FdcVerification` |
 | `packages/policy/src` | 998 | Policy IR + zod schema, compiler, commitment, ECIES to geth's profile, payment references, asset registry, two templates |
 | `packages/policy/test` | 689 | 60 tests, including the cross-language commitment vectors, the payment-reference vectors and the enclave wire format |
-| `apps/web` | 5,660 | Template gallery, IR-derived canvas and inspector, review step, Deployment Manager, Monitor, wallet, deploy flow, 32 tests |
+| `apps/web` | 5,660 | Template gallery, IR-derived canvas and inspector, review step, Deployment Manager, Monitor, wallet, deploy flow, 49 tests |
 | `apps/orchestrator` | 1,236 | Instruction sending, evaluate/execute round trip, `pnpm demo`, `pnpm handoff-check` |
 | `scripts` | 460 | Genericity guard, `pnpm preflight`, `pnpm sync-web-env` |
 | Extension — **ours** | 1,220 | `policy.go` (commitment + EIP-712 in Go), the `STORE`/`EVALUATE` handlers in `extension.go`, `types.go`, `InstructionSender.sol`, and 608 lines of Go tests |
 | Extension — **scaffold** | ~20,000 | Flare's `fce-` example: Docker compose, tee-node/proxy wiring, deploy tooling, language templates. Forked, not written. |
 
-**159 tests across three languages**, plus 29 Go test functions in the enclave —
+**176 tests across three languages**, plus 29 Go test functions in the enclave —
 all runnable offline except the two fork tests, which skip themselves without a
 network.
 

@@ -33,7 +33,7 @@ export type InspectorPanel = {
    * A named editor to mount below the rows. Named rather than passed as a
    * component so this module stays free of JSX and can be unit tested.
    */
-  editor?: 'recipients'
+  editor?: 'recipients' | 'trigger'
   help?: string
 }
 
@@ -110,9 +110,13 @@ function triggerPanel(ir: DraftIr): InspectorPanel {
       break
   }
 
+  // The rows stay, and the editor mounts below them: the summary is what a user
+  // reads, the fields are what they change. Dropping the rows in favour of the
+  // form would lose the plain-language statement of what the policy does.
   return {
     title: 'Trigger',
     rows,
+    editor: 'trigger',
     help: 'What causes this policy to run. Nothing happens before it does.',
   }
 }
