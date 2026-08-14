@@ -345,8 +345,16 @@ something is written but has not been run against the live network, it says so.
   against live Coston2.
 - ⚠️ **Sealing and the enclave hand-off are proven headlessly, not from the
   browser.** `pnpm demo` and `pnpm handoff-check` exercise both against live
-  Coston2. The browser path to them is built and has not yet completed a clean
-  run end to end.
+  Coston2. Until now the browser could not seal at all, and the cause was not in
+  our code: Flare's extension proxy answers `/info` with no
+  `Access-Control-Allow-Origin` and a 405 for the preflight, so the same request
+  that succeeds from Node fails from a page with a bare `TypeError: Failed to
+  fetch` — the browser deployed policies with no sealed half and called it "no
+  enclave key available". `app/api/enclave/info` now forwards that one public
+  document same-origin; the encryption and the on-chain submission still happen
+  in the browser and touch no server of ours. The machine key reads from the page
+  again. The steps past it — deploy, hand off, execute — have still not been run
+  from the browser in one clean pass, so this stays a ⚠️.
 - ✅ **Proven end to end on live Coston2.** `pnpm demo` compiles a policy, seals
   it, deploys it, funds it with real FXRP, hands the sealed half to the enclave,
   checks in, misses the next deadline, arms, has the enclave evaluate and sign,

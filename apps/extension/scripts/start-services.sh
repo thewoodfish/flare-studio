@@ -165,6 +165,10 @@ TUNNEL_ACTIVE=false
 sync_tunnel() {
     local cf_compose="$PROJECT_DIR/docker-compose.cloudflared.yaml"
     local -a proj=()   # empty → project "tunnel", from the compose file's `name:`
+    # bash 3.2 — the one macOS ships — counts an empty array as unset, so a bare
+    # a bare "${proj[@]}" aborts under `set -u` before docker is ever called. The
+    # `${a[@]+"${a[@]}"}` form expands to nothing when empty and to the quoted
+    # elements otherwise, on 3.2 and on 5.x alike.
     [[ -f "$cf_compose" ]] || die "$cf_compose not found — see docs/cloudflared.md"
 
     if [[ "$USE_LOCAL" == "true" ]]; then
@@ -177,10 +181,10 @@ sync_tunnel() {
         log "      container and mints a new URL. Use -p <name> to isolate it."
     fi
 
-    if docker compose "${proj[@]}" -f "$cf_compose" ps -q cloudflared 2>/dev/null | grep -q .; then
+    if docker compose ${proj[@]+"${proj[@]}"} -f "$cf_compose" ps -q cloudflared 2>/dev/null | grep -q .; then
         log "Cloudflare tunnel already running — reusing it."
     elif [[ "$USE_TUNNEL" == "true" ]]; then
-        docker compose "${proj[@]}" -f "$cf_compose" up -d || die "Failed to start cloudflared"
+        docker compose ${proj[@]+"${proj[@]}"} -f "$cf_compose" up -d || die "Failed to start cloudflared"
     else
         # Otherwise the only symptom is the /info wait timing out, which does not
         # point at the tunnel at all.
@@ -200,7 +204,7 @@ sync_tunnel() {
     # otherwise tail -1 hands back the previous run's dead hostname.
     local cid started
     local -a since=()
-    cid=$(docker compose "${proj[@]}" -f "$cf_compose" ps -q cloudflared 2>/dev/null | head -1 || true)
+    cid=$(docker compose ${proj[@]+"${proj[@]}"} -f "$cf_compose" ps -q cloudflared 2>/dev/null | head -1 || true)
     started=$(docker inspect -f '{{.State.StartedAt}}' "$cid" 2>/dev/null | cut -c1-19 || true)
     [[ -n "$started" ]] && since=(--since "${started}Z")
 
@@ -209,7 +213,7 @@ sync_tunnel() {
     for ((i = 0; i < 30; i++)); do
         # `|| true` is load-bearing: grep exits 1 until the URL appears, and
         # pipefail would kill the loop on iteration 1 instead of retrying.
-        url=$(docker compose "${proj[@]}" -f "$cf_compose" logs "${since[@]}" cloudflared 2>/dev/null \
+        url=$(docker compose ${proj[@]+"${proj[@]}"} -f "$cf_compose" logs ${since[@]+"${since[@]}"} cloudflared 2>/dev/null \
               | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1 || true)
         [[ -n "$url" ]] && break
         sleep 1

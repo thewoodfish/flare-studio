@@ -407,33 +407,27 @@ export async function probeEnclaveKey(): Promise<{ ok: boolean; reason?: string 
 }
 
 async function fetchTeePublicKey(): Promise<Hex | null> {
-  const base = process.env.NEXT_PUBLIC_EXT_PROXY_URL
-  if (!base) return null
+  if (!process.env.NEXT_PUBLIC_EXT_PROXY_URL) return null
 
-  const response = await fetch(`${base.replace(/\/$/, '')}/info`, {
-    signal: AbortSignal.timeout(5_000),
-    headers: {
-      Accept: 'application/json',
-      // Without this, an ngrok free tunnel serves its HTML interstitial to
-      // anything that looks like a browser and proxies only for everything
-      // else. The headless demo runs under Node and never sees it; the browser
-      // gets a warning page where it expected JSON, and the deploy quietly
-      // records "no enclave key available". Any value works; the header only
-      // has to be present.
-      'ngrok-skip-browser-warning': 'true',
-    },
+  // Same-origin, not the proxy directly. Flare's proxy answers /info with no
+  // CORS headers and a 405 for the preflight, so a browser reading it directly
+  // gets `TypeError: Failed to fetch` and no key -- the reason this path worked
+  // headlessly for weeks and never once from the browser. `app/api/enclave/info`
+  // forwards the request server-side; the tunnel handling, content-type check
+  // and error wording all live there now. Nothing else moves: the sealing and
+  // the submission stay in the browser.
+  const response = await fetch('/api/enclave/info', {
+    signal: AbortSignal.timeout(10_000),
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
   })
-  if (!response.ok) throw new Error(`proxy returned ${response.status}`)
 
-  // Assert the content type before parsing. A tunnel interstitial, a login
-  // page or a 200-with-HTML error all fail here with something that names the
-  // cause, rather than as a JSON parse error twenty lines away.
-  const contentType = response.headers.get('content-type') ?? ''
-  if (!contentType.includes('json')) {
-    throw new Error(
-      `proxy returned ${contentType || 'an unknown content type'} instead of JSON -- ` +
-        'the tunnel is probably serving a warning or error page rather than the enclave',
-    )
+  if (!response.ok) {
+    const detail = await response
+      .json()
+      .then((body: { error?: string }) => body.error)
+      .catch(() => null)
+    throw new Error(detail ?? `the enclave could not be reached (${response.status})`)
   }
 
   // The key arrives as {x, y} coordinates, not a hex string. Parsing it here by
