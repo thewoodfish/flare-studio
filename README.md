@@ -2,6 +2,31 @@
   <img src="docs/logo.png" alt="Flare Studio — Your Crypto. Your Policy." width="520">
 </p>
 
+<p align="center">
+  <em>Confidential, self-executing asset policies on Flare.</em>
+</p>
+
+<p align="center">
+  <img alt="179 tests" src="https://img.shields.io/badge/tests-179%20passing-0f7b4a">
+  <img alt="Live on Coston2" src="https://img.shields.io/badge/live-Coston2-e62058">
+  <img alt="Built on FAssets, FCC and FDC" src="https://img.shields.io/badge/built%20on-FAssets%20%C2%B7%20FCC%20%C2%B7%20FDC-1e5fa8">
+  <img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-8b8b95">
+</p>
+
+---
+
+## Contents
+
+[The problem](#the-problem) · [What we built](#what-we-built) ·
+[Proof it works](#it-works-and-here-is-the-receipt) ·
+[Worked example: inheritance](#the-worked-example-xrp-inheritance) ·
+[Why Flare](#why-flare) · [Architecture](#architecture) ·
+[Why generic is checkable](#why-generic-is-checkable) ·
+[What's real today](#whats-real-today) · [What we did not build](#what-we-did-not-build) ·
+[Deployed addresses](#deployed-addresses) · [Which bounties](#which-bounties-and-why) ·
+[Built during the program](#built-during-the-program) · [Running it](#running-it) ·
+[Roadmap](#roadmap)
+
 ---
 
 ## The problem
@@ -103,19 +128,6 @@ cast call 0x3c9d71Cd1D500C22eD34dcE94687Cb1ef585b815 "balance()(uint256)" \
 ```
 
 Or run the whole thing yourself — see [Running it](#running-it).
-
-### Contents
-
-[The problem](#the-problem) · [What we built](#what-we-built) ·
-[Worked example: inheritance](#the-worked-example-xrp-inheritance) ·
-[Why Flare](#why-flare) · [Architecture](#architecture) ·
-[Why generic is checkable](#inheritance-is-not-the-product--and-that-is-checkable) ·
-[What's real today](#whats-real-today) · [What we did not build](#what-we-did-not-build) ·
-[Deployed addresses](#deployed-addresses) · [Which bounties](#which-bounties-and-why) ·
-[Built during the program](#built-during-the-program) · [Running it](#running-it) ·
-[Roadmap](#roadmap)
-
----
 
 ## The worked example: XRP inheritance
 
@@ -256,7 +268,7 @@ the claim.
 Both are covered by tests, including one where the attested machine itself tries
 to redirect the funds.
 
-### Inheritance is not the product — and that is checkable
+## Why generic is checkable
 
 It is template #1. The engine is deliberately ignorant of it: `ConfidentialPolicy`
 holds no heartbeat interval, no deadline, no price threshold, no notion of an
@@ -353,6 +365,20 @@ something is written but has not been run against the live network, it says so.
 
 ---
 
+## What we did not build
+
+Worth stating plainly, because a submission that only lists wins is harder to
+trust than one that draws its own edges:
+
+- The FDC trigger has never fired from a real attestation — see
+  [What's real today](#whats-real-today).
+- `priceAbove` is an `ICondition` with no implementation. The seam is there and
+  deliberately empty; FTSO is not integrated and we do not claim it.
+- There is no mainnet deployment, no audit, and no key recovery for a lost
+  browser vault beyond the backup the app prompts you to download.
+
+---
+
 ## Deployed addresses
 
 Everything below is live on Coston2 (chain id 114) and resolvable in the
@@ -441,20 +467,6 @@ obvious:
   the owner never pays from and obtain an honest attestation that nothing
   arrived. `FdcNonexistenceTrigger` refuses any proof with that filter set.
   Absence only means something once you have fixed what you were looking for.
-
-### What we did not build
-
-Worth stating plainly, because a submission that only lists wins is harder to
-trust than one that draws its own edges:
-
-- The FDC trigger has never fired from a real attestation — see
-  [What's real today](#whats-real-today).
-- `priceAbove` is an `ICondition` with no implementation. The seam is there and
-  deliberately empty; FTSO is not integrated and we do not claim it.
-- There is no mainnet deployment, no audit, and no key recovery for a lost
-  browser vault beyond the backup the app prompts you to download.
-
----
 
 ## Running it
 
@@ -548,4 +560,4 @@ mechanical guard fails CI if template vocabulary ever reaches engine code.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
